@@ -3068,3 +3068,6 @@ Tinytest.add("minimongo - $near operator tests", function (test) {
   handle.stop();
 });
 
+
+//Hack to make LocalCollection generate ObjectIDs by default.
+LocalCollection._useOID = false;

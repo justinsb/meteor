@@ -363,6 +363,8 @@ _.each(["insert", "update", "remove"], function (name) {
     if (args.length && args[args.length - 1] instanceof Function)
       callback = args.pop();
 
+    Meteor._debug("Collection::" + name + " on " + self._name);
+
     if (name === "insert") {
       if (!args.length)
         throw new Error("insert requires an argument");
@@ -374,7 +376,20 @@ _.each(["insert", "update", "remove"], function (name) {
               || insertId instanceof Meteor.Collection.ObjectID))
           throw new Error("Meteor requires document _id fields to be non-empty strings or ObjectIDs");
       } else {
-        insertId = args[0]._id = self._makeNewID();
+        var generateId = false;
+        if (Meteor.isClient) {
+  //        insertId = args[0]._id = self._makeNewID();
+          var enclosing = DDP._CurrentInvocation.get();
+          if (!enclosing && !self._transform) {
+            generateId = false;
+          }
+        }
+        if (self._transform) {
+          generateId = true;
+        }
+        if (generateId) {
+          insertId = args[0]._id = self._makeNewID();
+        }
       }
     } else {
       args[0] = Meteor.Collection._rewriteSelector(args[0]);
@@ -401,10 +416,24 @@ _.each(["insert", "update", "remove"], function (name) {
     // On inserts, always return the id that we generated; on all other
     // operations, just return the result from the collection.
     var chooseReturnValueFromCollectionResult = function (result) {
-      if (name === "insert")
+      Meteor._debug("*>* " + result);
+      if (name === "insert") {
+        if (!insertId && result) {
+          insertId = result;
+
+//          // This is a little painful.
+//          if (_.isArray(result) && result.length > 0) {
+//            var stack = new Error().stack
+//            Meteor._debug("*** " + stack);
+//            Meteor._debug(typeof self._collection);
+//            result = result[0];
+//          }
+//          insertId = _.has(result, '_id') ? result._id : result;
+        }
         return insertId;
-      else
+      } else {
         return result;
+      }
     };
 
     var wrappedCallback;
@@ -443,9 +472,17 @@ _.each(["insert", "update", "remove"], function (name) {
         throwIfSelectorIsNotId(args[0], name);
       }
 
+      options = {}
+      options.returnStubValue = true;
+
       ret = chooseReturnValueFromCollectionResult(
-        self._connection.apply(self._prefix + name, args, wrappedCallback)
+        self._connection.apply(self._prefix + name, args, options, wrappedCallback)
       );
+      
+//      if (ret === undefined) {
+//        var docs = self._connection._documentsWrittenByStub;
+//        Meteor._debug("_documentsWrittenByStub = " + docs);
+//      }
 
     } else {
       // it's my collection.  descend into the collection object
@@ -455,7 +492,27 @@ _.each(["insert", "update", "remove"], function (name) {
         // If the user provided a callback and the collection implements this
         // operation asynchronously, then queryRet will be undefined, and the
         // result will be returned through the callback instead.
-        var queryRet = self._collection[name].apply(self._collection, args);
+//        var queryRet = self._collection[name].apply(self._collection, args);
+        
+        var enclosing = DDP._CurrentInvocation.get();
+        
+        if (enclosing) {
+          var invocation = new DDP.MethodInvocation({
+          isSimulation: enclosing.isSimulation,
+          userId: enclosing.user,
+          setUserId: enclosing.setUserId,
+          randomSeed: DDP.RandomStreams.get(enclosing, '/rpc/' + self._prefix + name).hexString(20)
+        });
+
+          Meteor._debug("Entering fake MethodInvoication " + invocation);
+
+          var queryRet = DDP._CurrentInvocation.withValue(invocation, function () {
+          return self._collection[name].apply(self._collection, args);
+        });
+        } else {
+          var queryRet = self._collection[name].apply(self._collection, args);
+        }
+          
         ret = chooseReturnValueFromCollectionResult(queryRet);
       } catch (e) {
         if (callback) {
@@ -652,6 +709,14 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
           // single-ID selectors.
           if (method !== 'insert')
             throwIfSelectorIsNotId(arguments[0], method);
+          
+          if (method === 'insert') {
+            // We generate the ID here, because it is more consistent with id generation elsewhere.
+            // TODO: Figure this out
+            if (!_.has(arguments[0], '_id')) {
+              //arguments[0]._id = DDP.RandomStreams.makeCollectionId(self._name);
+            }
+          }
 
           if (self._restricted) {
             // short circuit if there is no way it will pass.

@@ -300,6 +300,29 @@ var Connection = function (url, options) {
   }
 };
 
+//// LazyRandom...
+//var LazyRandom = function (enclosing, name) {
+//  var self = this;
+//  
+//  self.enclosing = enclosing;
+//  self.name = name;
+//  
+//  self.randomSeed = null;
+//  
+//  Meteor._debug("**LazyRandom: " + enclosing + ", " + name);
+//};
+//_.extend(LazyRandom.prototype, {
+//  generator: function () {
+//    var self = this;
+//    if (!self.randomSeed) {
+//      self.randomSeed = DDP.RandomStreams.get(self.enclosing, '/rpc/' + self.name).hexString(20);
+//      Meteor._debug("Built hex string for /rpc/" + self.name + " => " + self.randomSeed);
+//    }
+//    return self.randomSeed;
+//  }
+//});
+
+
 // A MethodInvoker manages sending a method to the server and calling the user's
 // callbacks. On construction, it registers itself in the connection's
 // _methodInvokers map; it removes itself once the method is fully finished and
@@ -600,6 +623,7 @@ _.extend(Connection.prototype, {
   apply: function (name, args, options, callback) {
     var self = this;
 
+    Meteor._debug("Making livedata call: " + name + "(" + args + ")");
     // We were passed 3 arguments. They may be either (name, args, options)
     // or (name, args, callback)
     if (!callback && typeof options === 'function') {
@@ -642,13 +666,15 @@ _.extend(Connection.prototype, {
     // randomSeed to save bandwidth, and we don't even generate it to save a
     // bit of CPU and to avoid consuming entropy.
     var randomSeed = {};
-    randomSeed.generator = function (){
+    randomSeed.generator = function () {
       var self = randomSeed;
       if (self.randomSeed === undefined) {
         self.randomSeed = DDP.RandomStreams.get(enclosing, '/rpc/' + name).hexString(20);
+        Meteor._debug("Built hex string for /rpc/" + name + " => " + self.randomSeed);
       }
       return self.randomSeed;
     };
+    //var randomSeed = new LazyRandom(enclosing, name);
 
     // Run the stub, if we have one. The stub is supposed to make some
     // temporary writes to the database to give the user a smooth experience
@@ -671,7 +697,7 @@ _.extend(Connection.prototype, {
         isSimulation: true,
         userId: self.userId(),
         setUserId: setUserId,
-        randomSeed: randomSeed.generator
+        randomSeed: function () { return randomSeed.generator(); }
       });
 
       if (!alreadyInSimulation)
@@ -788,7 +814,8 @@ _.extend(Connection.prototype, {
     if (future) {
       return future.wait();
     }
-    return undefined;
+
+    return options.returnStubValue ? ret : undefined;
   },
 
   // Before calling a method stub, prepare all stores to track changes and allow

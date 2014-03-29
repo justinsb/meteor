@@ -118,6 +118,8 @@ stringifyDDP = function (msg) {
   return JSON.stringify(copy);
 };
 
+DDP.MethodInvocation = MethodInvocation;
+
 // This is private but it's used in a few places. accounts-base uses
 // it to get the current user. accounts-password uses it to stash SRP
 // state in the DDP session. Meteor.setTimeout and friends clear

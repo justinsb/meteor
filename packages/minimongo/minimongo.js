@@ -506,8 +506,14 @@ LocalCollection.prototype.insert = function (doc, callback) {
   doc = EJSON.clone(doc);
 
   if (!_.has(doc, '_id')) {
+    
     // if you really want to use ObjectIDs, set this global.
     // Meteor.Collection specifies its own ids and does not use this code.
+//    if (LocalCollection._useOID) {
+//      doc._id = new LocalCollection._ObjectID(DDP.RandomStreams.makeMongoOid(self.name));
+//    } else {
+//      doc._id = DDP.RandomStreams.makeCollectionId(self.name);
+//    }
     doc._id = LocalCollection._useOID ? new LocalCollection._ObjectID(DDP.RandomStreams.makeMongoOid(self.name))
                                       : DDP.RandomStreams.makeCollectionId(self.name);
   }

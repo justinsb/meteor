@@ -2,6 +2,8 @@
 // the selector (or inserted document) contains fail: true.
 
 var TRANSFORMS = {};
+var COLLECTIONS = {};
+
 if (Meteor.isServer) {
   Meteor.methods({
     createInsecureCollection: function (name, options) {
@@ -15,6 +17,7 @@ if (Meteor.isServer) {
         options.transform = TRANSFORMS[options.transformName];
       }
       var c = new Meteor.Collection(name, options);
+      COLLECTIONS[name] = c;
       c._insecure = true;
       Meteor.publish('c-' + name, function () {
         return c.find();
@@ -22,6 +25,18 @@ if (Meteor.isServer) {
     }
   });
 }
+
+var LAST_INSERTED_ID = {};
+
+Meteor.methods({
+  insertObject: function (collectionName, doc) {
+    var c = COLLECTIONS[collectionName];
+    var id = c.insert(doc);
+    LAST_INSERTED_ID[collectionName] = id;
+    Meteor._debug("insertObject inserted " + id);
+    return id;
+  }
+});
 
 var runInFence = function (f) {
   if (Meteor.isClient) {
@@ -2126,7 +2141,7 @@ testAsyncMulti('mongo-livedata - specified _id', [
 ]);
 
 
-testAsyncMulti('mongo-livedata - consistent _id generation', [
+testAsyncMulti('mongo-livedata - consistent _id generation - insert', [
   function (test, expect) {
     var collectionName = "consistentid_" + Random.id();
     if (Meteor.isClient) {
@@ -2136,12 +2151,39 @@ testAsyncMulti('mongo-livedata - consistent _id generation', [
     var coll = new Meteor.Collection(collectionName);
     
     var clientSideId = coll.insert({name: "foo"}, expect(function (err1, id) {
+      Meteor._debug("clientSideId=" + clientSideId);
+      Meteor._debug("callbackId=" + id);
       test.equal(id, clientSideId);
       var doc = coll.findOne();
       test.equal(doc._id, clientSideId);
     }));
   }
 ]);
+
+testAsyncMulti('mongo-livedata - consistent _id generation - function calls insert', [
+  function (test, expect) {
+    var collectionName = "consistentid_" + Random.id();
+    if (Meteor.isClient) {
+      Meteor.call('createInsecureCollection', collectionName);
+      Meteor.subscribe('c-' + collectionName);
+    }
+    var coll = new Meteor.Collection(collectionName);
+    COLLECTIONS[collectionName] = coll;
+
+    Meteor.call("insertObject", collectionName, {name: "foo"}, expect(function (err1, id) {
+      var clientSideId = LAST_INSERTED_ID[collectionName];
+      Meteor._debug("clientSideId=" + clientSideId);
+      Meteor._debug("callbackId=" + id);
+      test.equal(id, clientSideId);
+      var doc = coll.findOne();
+      test.equal(doc._id, clientSideId);
+      test.equal(doc.name, "foo");
+    }));
+  }
+]);
+
+
+
 
 testAsyncMulti('mongo-livedata - empty string _id', [
   function (test, expect) {
