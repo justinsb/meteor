@@ -753,7 +753,7 @@ _.extend(Connection.prototype, {
     };
 
     // Send the randomSeed only if we used it
-    if (randomSeed.randomSeed) {
+    if (randomSeed.randomSeed && !options.suppressRandomSeed) {
       message.randomSeed = randomSeed.randomSeed;
     }
 
