@@ -416,18 +416,18 @@ _.each(["insert", "update", "remove"], function (name) {
       if (name === "insert") {
         if (!insertId && result) {
           insertId = result;
-          if (_.isArray(insertId) && insertId.length > 0) {
-            insertId = insertId[0];
-          }
-          if (_.has(insertId, '_id')) {
-            insertId = insertId._id;
-          }
-          if (_.has(insertId, '_str')) {
-            insertId = insertId._str;
-          }
-          if (_.has(insertId, 'id')) {
-            insertId = insertId.id;
-          }
+//          if (_.isArray(insertId) && insertId.length > 0) {
+//            insertId = insertId[0];
+//          }
+//          if (_.has(insertId, '_id')) {
+//            insertId = insertId._id;
+//          }
+//          if (_.has(insertId, '_str')) {
+//            insertId = insertId._str;
+//          }
+//          if (_.has(insertId, 'id')) {
+//            insertId = insertId.id;
+//          }
         }
         return insertId;
       } else {
@@ -499,7 +499,7 @@ _.each(["insert", "update", "remove"], function (name) {
           randomSeed: DDP.RandomStreams.get(enclosing, '/rpc/' + self._prefix + name).hexString(20)
         });
 
-          Meteor._debug("Entering fake MethodInvoication " + invocation);
+          Meteor._debug("Entering fake MethodInvocation " + invocation);
 
           var queryRet = DDP._CurrentInvocation.withValue(invocation, function () {
           return self._collection[name].apply(self._collection, args);

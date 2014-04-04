@@ -64,8 +64,11 @@ DDP.RandomStreams.makeCollectionId = function (collectionName) {
   if (collectionName) {
     var scope = DDP._CurrentInvocation.get();
     src = DDP.RandomStreams.get(scope, '/collection/' + collectionName);
+    Meteor._debug("Using sequence with seed " + src._seed);
   }
-  return src.id();
+  var id = src.id();
+  Meteor._debug("Built id for /collection/" + collectionName + " => " + id);
+  return id;
 };
 
 DDP.RandomStreams.makeMongoOid = function (collectionName) {
@@ -102,6 +105,7 @@ _.extend(RandomStream.prototype, {
         }
       }
       self._sequences[key] = sequence = Random.createWithSeeds.apply(null, sequenceSeed);
+      sequence._seed = sequenceSeed;
     }
     return sequence;
   }
