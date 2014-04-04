@@ -472,17 +472,12 @@ _.each(["insert", "update", "remove"], function (name) {
         throwIfSelectorIsNotId(args[0], name);
       }
 
-      options = {}
+      options = {};
       options.returnStubValue = true;
 
       ret = chooseReturnValueFromCollectionResult(
         self._connection.apply(self._prefix + name, args, options, wrappedCallback)
       );
-      
-//      if (ret === undefined) {
-//        var docs = self._connection._documentsWrittenByStub;
-//        Meteor._debug("_documentsWrittenByStub = " + docs);
-//      }
 
     } else {
       // it's my collection.  descend into the collection object
@@ -495,7 +490,7 @@ _.each(["insert", "update", "remove"], function (name) {
 //        var queryRet = self._collection[name].apply(self._collection, args);
         
         var enclosing = DDP._CurrentInvocation.get();
-        
+
         if (enclosing) {
           var invocation = new DDP.MethodInvocation({
           isSimulation: enclosing.isSimulation,

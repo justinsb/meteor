@@ -300,29 +300,6 @@ var Connection = function (url, options) {
   }
 };
 
-//// LazyRandom...
-//var LazyRandom = function (enclosing, name) {
-//  var self = this;
-//  
-//  self.enclosing = enclosing;
-//  self.name = name;
-//  
-//  self.randomSeed = null;
-//  
-//  Meteor._debug("**LazyRandom: " + enclosing + ", " + name);
-//};
-//_.extend(LazyRandom.prototype, {
-//  generator: function () {
-//    var self = this;
-//    if (!self.randomSeed) {
-//      self.randomSeed = DDP.RandomStreams.get(self.enclosing, '/rpc/' + self.name).hexString(20);
-//      Meteor._debug("Built hex string for /rpc/" + self.name + " => " + self.randomSeed);
-//    }
-//    return self.randomSeed;
-//  }
-//});
-
-
 // A MethodInvoker manages sending a method to the server and calling the user's
 // callbacks. On construction, it registers itself in the connection's
 // _methodInvokers map; it removes itself once the method is fully finished and
@@ -669,12 +646,11 @@ _.extend(Connection.prototype, {
     randomSeed.generator = function () {
       var self = randomSeed;
       if (self.randomSeed === undefined) {
-        self.randomSeed = DDP.RandomStreams.get(enclosing, '/rpc/' + name).hexString(20);
+        self.randomSeed = DDP.RandomStreams.makeRpcSeed(enclosing, name);
         Meteor._debug("Built hex string for /rpc/" + name + " => " + self.randomSeed);
       }
       return self.randomSeed;
     };
-    //var randomSeed = new LazyRandom(enclosing, name);
 
     // Run the stub, if we have one. The stub is supposed to make some
     // temporary writes to the database to give the user a smooth experience
