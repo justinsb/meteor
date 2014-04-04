@@ -300,6 +300,31 @@ var Connection = function (url, options) {
   }
 };
 
+// TODO: Document
+var RandomSeedGenerator = function (enclosing, name) {
+  var self = this;
+
+  self.enclosing = enclosing;
+  self.name = name;
+
+  self._seed = null;
+};
+_.extend(RandomSeedGenerator.prototype, {
+  seed: function () {
+    var self = this;
+    if (!self._seed) {
+      self._seed = DDP.RandomStreams.makeRpcSeed(self.enclosing, self.name);
+      Meteor._debug("Built seed string for /rpc/" + self.name + " => " + self._seed);
+    }
+    return self._seed;
+  },
+  used: function () {
+    var self = this;
+    return !!self._seed;
+  }
+});
+
+
 // A MethodInvoker manages sending a method to the server and calling the user's
 // callbacks. On construction, it registers itself in the connection's
 // _methodInvokers map; it removes itself once the method is fully finished and
@@ -641,14 +666,7 @@ _.extend(Connection.prototype, {
     // use a random seed on the server.  In that case, we don't pass the
     // randomSeed to save bandwidth, and we don't even generate it to save a
     // bit of CPU and to avoid consuming entropy.
-    var randomSeed = {};
-    randomSeed.generator = function () {
-      var self = randomSeed;
-      if (self.randomSeed === undefined) {
-        self.randomSeed = DDP.RandomStreams.makeRpcSeed(enclosing, name);
-      }
-      return self.randomSeed;
-    };
+    var randomSeedGenerator = new RandomSeedGenerator(enclosing, name);
 
     // Run the stub, if we have one. The stub is supposed to make some
     // temporary writes to the database to give the user a smooth experience
@@ -667,11 +685,12 @@ _.extend(Connection.prototype, {
       var setUserId = function(userId) {
         self.setUserId(userId);
       };
+
       var invocation = new MethodInvocation({
         isSimulation: true,
         userId: self.userId(),
         setUserId: setUserId,
-        randomSeed: function () { return randomSeed.generator(); }
+        randomSeed: function () { return randomSeedGenerator.seed(); }
       });
 
       if (!alreadyInSimulation)
@@ -753,8 +772,8 @@ _.extend(Connection.prototype, {
     };
 
     // Send the randomSeed only if we used it
-    if (randomSeed.randomSeed && !options.suppressRandomSeed) {
-      message.randomSeed = randomSeed.randomSeed;
+    if (randomSeedGenerator.used() && !options.suppressRandomSeed) {
+      message.randomSeed = randomSeedGenerator.seed();
     }
 
     var methodInvoker = new MethodInvoker({

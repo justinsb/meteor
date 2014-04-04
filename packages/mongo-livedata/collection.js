@@ -376,8 +376,8 @@ _.each(["insert", "update", "remove"], function (name) {
               || insertId instanceof Meteor.Collection.ObjectID))
           throw new Error("Meteor requires document _id fields to be non-empty strings or ObjectIDs");
       } else {
-        var generateId = false;
-        if (Meteor.isClient && self._connection && self._connection !== Meteor.server) {
+        var generateId = true;
+        if (Meteor.isClient) {
           var enclosing = DDP._CurrentInvocation.get();
           if (!enclosing && !self._transform) {
             Meteor._debug("Won't generate id");
@@ -488,7 +488,6 @@ _.each(["insert", "update", "remove"], function (name) {
         // operation asynchronously, then queryRet will be undefined, and the
         // result will be returned through the callback instead.
         
-
         var enclosing = DDP._CurrentInvocation.get();
 
         if (enclosing) {
@@ -496,7 +495,7 @@ _.each(["insert", "update", "remove"], function (name) {
           isSimulation: enclosing.isSimulation,
           userId: enclosing.user,
           setUserId: enclosing.setUserId,
-          randomSeed: DDP.RandomStreams.get(enclosing, '/rpc/' + self._prefix + name).hexString(20)
+          randomSeed: DDP.RandomStreams.makeRpcSeed(enclosing, self._prefix + name)
         });
 
           Meteor._debug("Entering fake MethodInvocation " + invocation);
