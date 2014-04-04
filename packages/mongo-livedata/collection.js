@@ -475,28 +475,7 @@ _.each(["insert", "update", "remove"], function (name) {
         // If the user provided a callback and the collection implements this
         // operation asynchronously, then queryRet will be undefined, and the
         // result will be returned through the callback instead.
-        
-        var enclosing = DDP._CurrentInvocation.get();
-
-        if (enclosing) {
-          var invocation = new DDP.MethodInvocation({
-          isSimulation: enclosing.isSimulation,
-          userId: enclosing.user,
-          setUserId: enclosing.setUserId,
-          randomSeed: DDP.RandomStreams.makeRpcSeed(enclosing, self._prefix + name)
-        });
-
-          Meteor._debug("Entering fake MethodInvocation " + invocation);
-
-          var queryRet = DDP._CurrentInvocation.withValue(invocation, function () {
-          return self._collection[name].apply(self._collection, args);
-        });
-        } else {
-          var queryRet = self._collection[name].apply(self._collection, args);
-        }
-
-        
-        //var queryRet = self._collection[name].apply(self._collection, args);
+        var queryRet = self._collection[name].apply(self._collection, args);
         ret = chooseReturnValueFromCollectionResult(queryRet);
       } catch (e) {
         if (callback) {
