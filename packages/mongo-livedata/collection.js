@@ -416,18 +416,6 @@ _.each(["insert", "update", "remove"], function (name) {
       if (name === "insert") {
         if (!insertId && result) {
           insertId = result;
-//          if (_.isArray(insertId) && insertId.length > 0) {
-//            insertId = insertId[0];
-//          }
-//          if (_.has(insertId, '_id')) {
-//            insertId = insertId._id;
-//          }
-//          if (_.has(insertId, '_str')) {
-//            insertId = insertId._str;
-//          }
-//          if (_.has(insertId, 'id')) {
-//            insertId = insertId.id;
-//          }
         }
         return insertId;
       } else {
