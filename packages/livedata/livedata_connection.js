@@ -788,7 +788,7 @@ _.extend(Connection.prototype, {
     if (future) {
       return future.wait();
     }
-    return undefined;
+    return options.returnStubValue ? ret : undefined;
   },
 
   // Before calling a method stub, prepare all stores to track changes and allow

@@ -360,6 +360,8 @@ _.each(["insert", "update", "remove"], function (name) {
     var insertId;
     var ret;
 
+    Meteor._debug("In collection.js " + name);
+    
     if (args.length && args[args.length - 1] instanceof Function)
       callback = args.pop();
 
@@ -374,7 +376,17 @@ _.each(["insert", "update", "remove"], function (name) {
               || insertId instanceof Meteor.Collection.ObjectID))
           throw new Error("Meteor requires document _id fields to be non-empty strings or ObjectIDs");
       } else {
-        insertId = args[0]._id = self._makeNewID();
+        var generateId = false;
+        if (Meteor.isClient && self._connection && self._connection !== Meteor.server) {
+          var enclosing = DDP._CurrentInvocation.get();
+          if (!enclosing && !self._transform) {
+            Meteor._debug("Won't generate id");
+            generateId = false;
+          }
+        }
+        if (generateId) {
+          insertId = args[0]._id = self._makeNewID();
+        }
       }
     } else {
       args[0] = Meteor.Collection._rewriteSelector(args[0]);
@@ -401,10 +413,26 @@ _.each(["insert", "update", "remove"], function (name) {
     // On inserts, always return the id that we generated; on all other
     // operations, just return the result from the collection.
     var chooseReturnValueFromCollectionResult = function (result) {
-      if (name === "insert")
+      if (name === "insert") {
+        if (!insertId && result) {
+          insertId = result;
+          if (_.isArray(insertId) && insertId.length > 0) {
+            insertId = insertId[0];
+          }
+          if (_.has(insertId, '_id')) {
+            insertId = insertId._id;
+          }
+          if (_.has(insertId, '_str')) {
+            insertId = insertId._str;
+          }
+          if (_.has(insertId, 'id')) {
+            insertId = insertId.id;
+          }
+        }
         return insertId;
-      else
+      } else {
         return result;
+      }
     };
 
     var wrappedCallback;
@@ -444,7 +472,8 @@ _.each(["insert", "update", "remove"], function (name) {
       }
 
       options = {};
-      options.suppressRandomSeed = true;
+      options.returnStubValue = true;
+      //options.suppressRandomSeed = true;
 
       ret = chooseReturnValueFromCollectionResult(
         self._connection.apply(self._prefix + name, args, options, wrappedCallback)
@@ -458,7 +487,29 @@ _.each(["insert", "update", "remove"], function (name) {
         // If the user provided a callback and the collection implements this
         // operation asynchronously, then queryRet will be undefined, and the
         // result will be returned through the callback instead.
-        var queryRet = self._collection[name].apply(self._collection, args);
+        
+
+        var enclosing = DDP._CurrentInvocation.get();
+
+        if (enclosing) {
+          var invocation = new DDP.MethodInvocation({
+          isSimulation: enclosing.isSimulation,
+          userId: enclosing.user,
+          setUserId: enclosing.setUserId,
+          randomSeed: DDP.RandomStreams.get(enclosing, '/rpc/' + self._prefix + name).hexString(20)
+        });
+
+          Meteor._debug("Entering fake MethodInvoication " + invocation);
+
+          var queryRet = DDP._CurrentInvocation.withValue(invocation, function () {
+          return self._collection[name].apply(self._collection, args);
+        });
+        } else {
+          var queryRet = self._collection[name].apply(self._collection, args);
+        }
+
+        
+        //var queryRet = self._collection[name].apply(self._collection, args);
         ret = chooseReturnValueFromCollectionResult(queryRet);
       } catch (e) {
         if (callback) {
@@ -641,6 +692,17 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
         // All the methods do their own validation, instead of using check().
         check(arguments, [Match.Any]);
         try {
+          if (method === "insert") {
+            Meteor._debug("In stub: arg " + arguments[0]);
+            if (!_.has(arguments[0], '_id')) {
+              Meteor._debug("In stub; generating id");
+              // shallow-copy the document and generate an ID
+              arguments[0] = _.extend({}, arguments[0]);
+              arguments[0]._id = self._makeNewID();
+              Meteor._debug("In stub; generated id=" + arguments[0]._id);
+            }
+          }
+
           if (this.isSimulation) {
 
             // In a client simulation, you can do any mutation (even with a
@@ -655,7 +717,7 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
           // single-ID selectors.
           if (method !== 'insert')
             throwIfSelectorIsNotId(arguments[0], method);
-
+            
           if (self._restricted) {
             // short circuit if there is no way it will pass.
             if (self._validators[method].allow.length === 0) {

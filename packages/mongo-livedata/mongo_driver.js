@@ -277,16 +277,52 @@ MongoConnection.prototype._insert = function (collection_name, document,
     else
       throw e;
   }
+  
+  if (!_.has(document, '_id')) {
+    // This is now _only_ used by the tests that go 'direct'
+    document._id = DDP.RandomStreams.makeCollectionId(collection_name);
+//    doc._id = LocalCollection._useOID ? new LocalCollection._ObjectID(DDP.RandomStreams.makeMongoOid(self.name))
+//                                      : DDP.RandomStreams.makeCollectionId(self.name);
+  }
 
   var write = self._maybeBeginWrite();
   var refresh = function () {
     Meteor.refresh({collection: collection_name, id: document._id });
   };
-  callback = bindEnvironmentForWrite(writeCallback(write, refresh, callback));
+
+  var insertCallback = function (write, refresh, callback) {
+    return function (err, result) {
+      if (! err) {
+        // XXX We don't have to run this on error, right?
+        refresh();
+      }
+      write.committed();
+      if (callback) {
+        if (_.isArray(result)) {
+          if (result.length > 0) {
+            result = result[0];
+          } else {
+            result = null;
+          }
+        }
+        if (result && _.has(result, "_id")) {
+          result = result._id;
+        }
+        callback(err, result);
+      }
+      else if (err)
+        throw err;
+    };
+  };
+
+  callback = bindEnvironmentForWrite(insertCallback(write, refresh, callback));
+
+//  callback = bindEnvironmentForWrite(writeCallback(write, refresh, callback));
   try {
     var collection = self._getCollection(collection_name);
     collection.insert(replaceTypes(document, replaceMeteorAtomWithMongo),
                       {safe: true}, callback);
+    return document._id;
   } catch (e) {
     write.committed();
     throw e;

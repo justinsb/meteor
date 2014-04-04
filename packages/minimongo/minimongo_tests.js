@@ -3068,3 +3068,5 @@ Tinytest.add("minimongo - $near operator tests", function (test) {
   handle.stop();
 });
 
+
+LocalCollection._useOID = false;
