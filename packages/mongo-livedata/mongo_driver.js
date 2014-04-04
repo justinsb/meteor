@@ -277,23 +277,11 @@ MongoConnection.prototype._insert = function (collection_name, document,
     else
       throw e;
   }
-  
-  if (!_.has(document, '_id')) {
-    // This is now _only_ used by the tests that go 'direct'
-    err = new Error("Inserting document without ID (mongo_driver)");
-    Meteor._debug("Inserting document without ID  (mongo_driver)");
-    Meteor._debug(err.stack);
-
-    //document._id = DDP.RandomStreams.makeCollectionId(collection_name);
-//    doc._id = LocalCollection._useOID ? new LocalCollection._ObjectID(DDP.RandomStreams.makeMongoOid(self.name))
-//                                      : DDP.RandomStreams.makeCollectionId(self.name);
-  }
 
   var write = self._maybeBeginWrite();
   var refresh = function () {
     Meteor.refresh({collection: collection_name, id: document._id });
   };
-
   callback = bindEnvironmentForWrite(writeCallback(write, refresh, callback));
   try {
     var collection = self._getCollection(collection_name);

@@ -360,8 +360,6 @@ _.each(["insert", "update", "remove"], function (name) {
     var insertId;
     var ret;
 
-    Meteor._debug("In collection.js " + name);
-    
     if (args.length && args[args.length - 1] instanceof Function)
       callback = args.pop();
 
@@ -380,7 +378,6 @@ _.each(["insert", "update", "remove"], function (name) {
         if (Meteor.isClient) {
           var enclosing = DDP._CurrentInvocation.get();
           if (!enclosing && !self._transform) {
-            Meteor._debug("Won't generate id");
             generateId = false;
           }
         }
@@ -461,7 +458,6 @@ _.each(["insert", "update", "remove"], function (name) {
 
       options = {};
       options.returnStubValue = true;
-      //options.suppressRandomSeed = true;
 
       ret = chooseReturnValueFromCollectionResult(
         self._connection.apply(self._prefix + name, args, options, wrappedCallback)
@@ -659,13 +655,10 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
         check(arguments, [Match.Any]);
         try {
           if (method === "insert") {
-            Meteor._debug("In stub: arg " + arguments[0]);
             if (!_.has(arguments[0], '_id')) {
-              Meteor._debug("In stub; generating id");
               // shallow-copy the document and generate an ID
               arguments[0] = _.extend({}, arguments[0]);
               arguments[0]._id = self._makeNewID();
-              Meteor._debug("In stub; generated id=" + arguments[0]._id);
             }
           }
 
@@ -683,7 +676,7 @@ Meteor.Collection.prototype._defineMutationMethods = function() {
           // single-ID selectors.
           if (method !== 'insert')
             throwIfSelectorIsNotId(arguments[0], method);
-            
+
           if (self._restricted) {
             // short circuit if there is no way it will pass.
             if (self._validators[method].allow.length === 0) {
