@@ -510,11 +510,6 @@ LocalCollection.prototype.insert = function (doc, callback) {
     // Meteor.Collection specifies its own ids and does not use this code.
     doc._id = LocalCollection._useOID ? new LocalCollection._ObjectID()
                                       : Random.id();
-
-    err = new Error("Inserting document without ID (minimongo)");
-    Meteor._debug("Inserting document without ID (minimongo)" +
-    		"");
-    Meteor._debug(err.stack);
   }
   var id = doc._id;
 
