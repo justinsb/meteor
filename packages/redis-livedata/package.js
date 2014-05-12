@@ -13,7 +13,7 @@ Package.describe({
 });
 
 Npm.depends({
-  mongodb: "1.4.1"
+  redis: "0.10.1"
 });
 
 Package.on_use(function (api) {
@@ -61,7 +61,7 @@ Package.on_use(function (api) {
 });
 
 Package.on_test(function (api) {
-  api.use('mongo-livedata');
+  api.use('redis-livedata');
   api.use('check');
   api.use(['tinytest', 'underscore', 'test-helpers', 'ejson', 'random',
            'livedata']);
