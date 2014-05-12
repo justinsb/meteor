@@ -1,10 +1,10 @@
-MongoInternals.RemoteCollectionDriver = function (
+RedisInternals.RemoteCollectionDriver = function (
   mongo_url, options) {
   var self = this;
-  self.mongo = new MongoConnection(mongo_url, options);
+  self.mongo = new RedisConnection(mongo_url, options);
 };
 
-_.extend(MongoInternals.RemoteCollectionDriver.prototype, {
+_.extend(RedisInternals.RemoteCollectionDriver.prototype, {
   open: function (name) {
     var self = this;
     var ret = {};
@@ -23,11 +23,11 @@ _.extend(MongoInternals.RemoteCollectionDriver.prototype, {
 // Create the singleton RemoteCollectionDriver only on demand, so we
 // only require Mongo configuration if it's actually used (eg, not if
 // you're only trying to receive data from a remote DDP server.)
-MongoInternals.defaultRemoteCollectionDriver = _.once(function () {
+RedisInternals.defaultRemoteCollectionDriver = _.once(function () {
   var mongoUrl;
   var connectionOptions = {};
 
-  AppConfig.configurePackage("mongo-livedata", function (config) {
+  AppConfig.configurePackage("redis-livedata", function (config) {
     // This will keep running if mongo gets reconfigured.  That's not ideal, but
     // should be ok for now.
     mongoUrl = config.url;
@@ -36,10 +36,14 @@ MongoInternals.defaultRemoteCollectionDriver = _.once(function () {
       connectionOptions.oplogUrl = config.oplog;
   });
 
+  if (!mongoUrl) {
+	  mongoUrl = "127.0.0.1";
+  }
+
   // XXX bad error since it could also be set directly in METEOR_DEPLOY_CONFIG
-  if (! mongoUrl)
+  if (!mongoUrl)
     throw new Error("MONGO_URL must be set in environment");
 
 
-  return new MongoInternals.RemoteCollectionDriver(mongoUrl, connectionOptions);
+  return new RedisInternals.RemoteCollectionDriver(mongoUrl, connectionOptions);
 });

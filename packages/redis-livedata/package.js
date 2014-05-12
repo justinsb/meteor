@@ -35,7 +35,7 @@ Package.on_use(function (api) {
   // Allow us to detect 'disable-oplog', which turns off oplog tailing for your
   // app even if it's configured in the environment. (This package will be
   // probably be removed before 1.0.)
-  api.use('disable-oplog', 'server', {weak: true});
+  //api.use('disable-oplog', 'server', {weak: true});
 
   // defaultRemoteCollectionDriver gets its deployConfig from something that is
   // (for questionable reasons) initialized by the webapp package.
@@ -47,13 +47,17 @@ Package.on_use(function (api) {
   api.use('callback-hook', 'server');
 
   // Stuff that should be exposed via a real API, but we haven't yet.
-  api.export('MongoInternals', 'server');
+  api.export('RedisInternals', 'server');
   // For tests only.
-  api.export('MongoTest', 'server', {testOnly: true});
+  api.export('RedisTest', 'server', {testOnly: true});
 
-  api.add_files(['mongo_driver.js', 'oplog_tailing.js',
-                 'observe_multiplex.js', 'doc_fetcher.js',
-                 'polling_observe_driver.js','oplog_observe_driver.js'],
+  api.add_files(['mongo_driver.js',
+                 //'oplog_tailing.js',
+                 'observe_multiplex.js',
+                 'doc_fetcher.js',
+                 'polling_observe_driver.js',
+                 //'oplog_observe_driver.js'
+                ],
                 'server');
   api.add_files('local_collection_driver.js', ['client', 'server']);
   api.add_files('remote_collection_driver.js', 'server');
@@ -71,6 +75,6 @@ Package.on_test(function (api) {
   api.add_files('allow_tests.js', ['client', 'server']);
   api.add_files('collection_tests.js', ['client', 'server']);
   api.add_files('observe_changes_tests.js', ['client', 'server']);
-  api.add_files('oplog_tests.js', 'server');
+  //api.add_files('oplog_tests.js', 'server');
   api.add_files('doc_fetcher_tests.js', 'server');
 });
