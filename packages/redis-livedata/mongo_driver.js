@@ -352,7 +352,10 @@ RedisCursor.prototype._getResults = function (callback) {
     self._getAll(keys, function(fetchedKeys, errors, values) {
       for (var i = 0; i < values.length; i++) {
         var value = values[i];
-        if (value === null || value === undefined) continue;
+        if (value === null || value === undefined) {
+          Meteor._debug("Error reading key (concurrent modification?): " + fetchedKeys[i]);
+          continue;
+        }
         var doc = JSON.parse(value);
 
         Meteor._debug(fetchedKeys[i] + ": " + value + " => " + JSON.stringify(doc));
