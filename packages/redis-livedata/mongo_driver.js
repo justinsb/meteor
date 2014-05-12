@@ -176,6 +176,127 @@ RedisCollection.prototype.insert = function (docs, options, callback) {
   });
 };
 
+
+RedisCollection.prototype.update = function (selector, mod, options, callback) {
+  Meteor._debug("RedisCollection.update(" + JSON.stringify(arguments) + ")");
+  var self = this;
+  
+  var deferredCallback = function (err, result, extra) {
+    Meteor.defer(function () { callback(err, result, extra); });
+  };
+  
+  var collectionName = self.collectionName;
+  var extra = {};
+  
+  var upsert = !!options.upsert;
+  
+  var matcher = new Minimongo.Matcher(selector, self);
+  if (LocalCollection._selectorIsId(selector)) {
+    matcher = new Minimongo.Matcher(selector, self);
+    Meteor._debug("SELECTOR IS ID");
+  } else {
+      matcher = new Minimongo.Matcher(selector, self);
+    Meteor._debug("MATCHER IS " + JSON.stringify(matcher));
+  }
+
+  var client = self.connection.db;
+
+  // TODO: Refactor with similar _getResults code?
+  client.keys(self.collectionName + "/*", Meteor.bindEnvironment(function (err, keys) {
+    if (err) {
+      if (err) {
+        Meteor._debug("Error listing keys in redis: " + err);
+      }
+      deferredCallback(err, null, extra);
+      return;
+    }
+
+    Meteor._debug("Fetching keys: " + JSON.stringify(keys));
+
+    self._getAll(keys, function(fetchedKeys, errors, values) {
+      var setKeys = [];
+      var setValues = [];
+      
+      for (var i = 0; i < values.length; i++) {
+        var value = values[i];
+        if (value === null || value === undefined) {
+          Meteor._debug("Error reading key (concurrent modification?): " + fetchedKeys[i]);
+          continue;
+        }
+        var doc = JSON.parse(value);
+        if (!matcher.documentMatches(doc).result) {
+          continue;
+        }
+        
+        Meteor._debug("Updating " + fetchedKeys[i] + ": " + value + " => " + JSON.stringify(doc));
+
+        LocalCollection._modify(doc, mod, options);
+        
+        // TODO: Validate id hasn't changed
+        var key = fetchedKeys[i];
+        var value = JSON.stringify(doc);
+        
+        setKeys.push(key);
+        setValues.push(value);
+      }
+      
+      if (setKeys.length) {
+        Meteor._debug("set: " + JSON.stringify(setKeys) + " => " + JSON.stringify(setValues));
+        self._setAll(setKeys, setValues, function (errors, results) {
+          for (var i = 0; i < errors.length; i++) {
+            if (errors[i] === null || errors[i] === undefined) {
+              continue;
+            }
+            var err = "Error setting value in Redis";
+            deferredCallback(err, null, extra);
+            return;
+          }
+          deferredCallback(null, setValues.length, extra);
+        });
+      } else if (upsert) {
+        Meteor._debug("Upsert with no update; doing insert");
+          
+        var newDoc;
+        try {
+            newDoc = LocalCollection._removeDollarOperators(selector);
+            
+            // Not sure why this is needed here, but not in minimongo's equivalent code
+            if (mod._id && !newDoc._id) {
+              newDoc._id = mod._id;
+            }
+            LocalCollection._modify(newDoc, mod, {isInsert: true});
+        } catch (e) {
+          var err = {};
+          err.code = 0;
+          err.err = e.message;
+          
+          Meteor._debug("selector: " + JSON.stringify(selector));
+          Meteor._debug("mod: " + JSON.stringify(mod));
+          
+          Meteor._debug("Caught exception in LocalCollection._modify: " + JSON.stringify(err));
+          deferredCallback(err, 0, extra);
+          return;
+        }
+        if (! newDoc._id && options.insertedId) {
+          newDoc._id = options.insertedId;
+        }
+          
+        Meteor._debug("Doing insert for upsert: " + JSON.stringify(newDoc));
+        var insertCallback = function (err, results) {
+          if (err) {
+            deferredCallback(err, 0, extra);
+          } else {
+            deferredCallback(null, 1, extra);
+          }
+        };
+        var docs = [newDoc];
+        self.insert(collectionName, docs, options, insertCallback);
+      }
+    });
+  }));
+};
+
+
 RedisCollection.prototype._setAll = function (keys, values, callback) {
   var self = this;
   
@@ -276,10 +397,10 @@ RedisCursor.prototype.count = function (applySkipLimit, callback) {
   });
 };
 
-RedisCursor.prototype._getAll = function (keys, callback) {
+RedisCollection.prototype._getAll = function (keys, callback) {
   var self = this;
   
-  var client = self.collection.connection.db;
+  var client = self.connection.db;
 
   var fetchedKeys = [];
   var errors = [];
@@ -293,9 +414,7 @@ RedisCursor.prototype._getAll = function (keys, callback) {
     return;
   }
 
-  for (var i = 0; i < n; i++) {
-    var key = keys[i];
-    
+  _.each(keys, function(key) {
     client.get(key, Meteor.bindEnvironment(function(err, value) {
       if (err) {
         Meteor._debug("Error getting key from redis: " + err);
@@ -309,7 +428,7 @@ RedisCursor.prototype._getAll = function (keys, callback) {
         callback(fetchedKeys, errors, values);
       }
     }));
-  }
+  });
 };
 
 RedisCursor.prototype._getResults = function (callback) {
@@ -338,7 +457,7 @@ RedisCursor.prototype._getResults = function (callback) {
     Meteor._debug("MATCHER IS " + JSON.stringify(matcher));
   }
   
-  client.keys("*", Meteor.bindEnvironment(function (err, keys) {
+  client.keys(collectionName + "/*", Meteor.bindEnvironment(function (err, keys) {
     if (err) {
       if (err) {
         Meteor._debug("Error listing keys in redis: " + err);
@@ -349,7 +468,7 @@ RedisCursor.prototype._getResults = function (callback) {
 
     Meteor._debug("Fetching keys: " + JSON.stringify(keys));
 
-    self._getAll(keys, function(fetchedKeys, errors, values) {
+    self.collection._getAll(keys, function(fetchedKeys, errors, values) {
       for (var i = 0; i < values.length; i++) {
         var value = values[i];
         if (value === null || value === undefined) {
