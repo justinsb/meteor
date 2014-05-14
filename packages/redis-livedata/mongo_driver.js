@@ -160,7 +160,8 @@ RedisCollection.prototype.insert = function (docs, options, callback) {
     keys.push(key);
     values.push(value);
   }
-  self._setAll(keys, values, function (errors, results) {
+  var client = self.connection.db;
+  client.setAll(keys, values, function (errors, results) {
     for (var i = 0; i < errors.length; i++) {
       if (errors[i] === null || errors[i] === undefined) {
         continue;
@@ -191,18 +192,10 @@ RedisCollection.prototype.update = function (selector, mod, options, callback) {
   var upsert = !!options.upsert;
   
   var matcher = new Minimongo.Matcher(selector, self);
-  if (LocalCollection._selectorIsId(selector)) {
-    matcher = new Minimongo.Matcher(selector, self);
-    Meteor._debug("SELECTOR IS ID");
-  } else {
-      matcher = new Minimongo.Matcher(selector, self);
-    Meteor._debug("MATCHER IS " + JSON.stringify(matcher));
-  }
 
   var client = self.connection.db;
 
-  // TODO: Refactor with similar _getResults code?
-  client.keys(self.collectionName + "/*", Meteor.bindEnvironment(function (err, keys) {
+  client.findCandidateKeys(self.collectionName, matcher, function (err, keys) {
     if (err) {
       if (err) {
         Meteor._debug("Error listing keys in redis: " + err);
@@ -213,7 +206,7 @@ RedisCollection.prototype.update = function (selector, mod, options, callback) {
 
     Meteor._debug("Fetching keys: " + JSON.stringify(keys));
 
-    self._getAll(keys, function(fetchedKeys, errors, values) {
+    client.getAll(keys, function(fetchedKeys, errors, values) {
       var setKeys = [];
       var setValues = [];
       
@@ -242,7 +235,7 @@ RedisCollection.prototype.update = function (selector, mod, options, callback) {
       
       if (setKeys.length) {
         Meteor._debug("set: " + JSON.stringify(setKeys) + " => " + JSON.stringify(setValues));
-        self._setAll(setKeys, setValues, function (errors, results) {
+        client.setAll(setKeys, setValues, function (errors, results) {
           for (var i = 0; i < errors.length; i++) {
             if (errors[i] === null || errors[i] === undefined) {
               continue;
@@ -293,38 +286,9 @@ RedisCollection.prototype.update = function (selector, mod, options, callback) {
         self.insert(collectionName, docs, options, insertCallback);
       }
     });
-  }));
+  });
 };
 
-
-RedisCollection.prototype._setAll = function (keys, values, callback) {
-  var self = this;
-  
-  var client = self.connection.db;
-
-  var errors = [];
-  var results = [];
-  var replyCount = 0;
-  
-  var n = keys.length;
-  for (var i = 0; i < n; i++) {
-    var key = keys[i];
-    var value = values[i];
-    
-    client.set(key, value, Meteor.bindEnvironment(function(err, result) {
-      if (err) {
-        Meteor._debug("Error setting value in redis: " + err);
-      }
-      errors[i] = err;
-      results[i] = result;
-      
-      replyCount++;
-      if (replyCount == n) {
-        callback(errors, results);
-      }
-    }));
-  }
-};
 
 RedisCursor = function (collection, selector, fields, options) {
   var self = this;
@@ -397,40 +361,6 @@ RedisCursor.prototype.count = function (applySkipLimit, callback) {
   });
 };
 
-RedisCollection.prototype._getAll = function (keys, callback) {
-  var self = this;
-  
-  var client = self.connection.db;
-
-  var fetchedKeys = [];
-  var errors = [];
-  var values = [];
-  var replyCount = 0;
-  
-  var n = keys.length;
-  
-  if (n == 0) {
-    callback(fetchedKeys, errors, values);
-    return;
-  }
-
-  _.each(keys, function(key) {
-    client.get(key, Meteor.bindEnvironment(function(err, value) {
-      if (err) {
-        Meteor._debug("Error getting key from redis: " + err);
-      }
-      fetchedKeys.push(key);
-      errors.push(err);
-      values.push(value);
-      
-      replyCount++;
-      if (replyCount == n) {
-        callback(fetchedKeys, errors, values);
-      }
-    }));
-  });
-};
-
 RedisCursor.prototype._getResults = function (callback) {
   var self = this;
 
@@ -449,15 +379,8 @@ RedisCursor.prototype._getResults = function (callback) {
   var results = [];
 
   var matcher = new Minimongo.Matcher(selector, self);
-  if (LocalCollection._selectorIsId(selector)) {
-    matcher = new Minimongo.Matcher(selector, self);
-    Meteor._debug("SELECTOR IS ID");
-  } else {
-      matcher = new Minimongo.Matcher(selector, self);
-    Meteor._debug("MATCHER IS " + JSON.stringify(matcher));
-  }
   
-  client.keys(collectionName + "/*", Meteor.bindEnvironment(function (err, keys) {
+  var processKeys = function (err, keys) {
     if (err) {
       if (err) {
         Meteor._debug("Error listing keys in redis: " + err);
@@ -468,7 +391,7 @@ RedisCursor.prototype._getResults = function (callback) {
 
     Meteor._debug("Fetching keys: " + JSON.stringify(keys));
 
-    self.collection._getAll(keys, function(fetchedKeys, errors, values) {
+    client.getAll(keys, function(fetchedKeys, errors, values) {
       for (var i = 0; i < values.length; i++) {
         var value = values[i];
         if (value === null || value === undefined) {
@@ -507,7 +430,9 @@ RedisCursor.prototype._getResults = function (callback) {
       self._results = results;
       callback(null, results);
     });
-  }));
+  };
+  
+  client.findCandidateKeys(collectionName, matcher, processKeys);
 };
 
 
@@ -558,10 +483,8 @@ RedisConnection = function (url, options) {
     redisOptions.replSet.poolSize = options.poolSize;
   }
   
-  var port = 6379;
-  var host = "127.0.0.1";
   var options = {};
-  self.db = RedisNpm.createClient(port, host, options);
+  self.db = new RedisClient(url, options);
 
 //  RedisNpm.connect(url, mongoOptions, Meteor.bindEnvironment(function(err, db) {
 //    if (err)

@@ -31,6 +31,32 @@ RedisClient.prototype.subscribeKeyspaceEvents = function (callback, listener) {
   self._client.psubscribe("__keyspace@*", callback);
 };
 
+RedisClient.prototype.findCandidateKeys = function (collectionName, matcher, callback) {
+  var self = this;
+
+  // Special case the single-document matcher
+  // {"_paths":{"_id":true},"_hasGeoQuery":false,"_hasWhere":false,"_isSimple":true,"_selector":{"_id":"XhjyfgEbYyoYTiABX"}}
+  var simpleKeys = null;
+  if (!matcher._hasGeoQuery && !matcher._hasWhere && matcher._isSimple) {
+    var keys = _.keys(matcher._selector);
+    Meteor._debug("keys: " + keys);
+    if (keys.length == 1 && keys[0] === "_id") {
+      var selectorId = matcher._selector._id;
+      if (typeof selectorId === 'string') {
+        simpleKeys = [collectionName + "//" + selectorId];
+        Meteor._debug("Detected simple id query: " + simpleKeys);
+      }
+    }
+  }
+  
+  if (simpleKeys === null) {
+    self._client.keys(collectionName + "//*", Meteor.bindEnvironment(callback));
+  } else {
+    callback(null, simpleKeys);
+  }
+};
+
+
 
 RedisClient.prototype.incr = function (key, callback) {
   var self = this;
@@ -38,3 +64,65 @@ RedisClient.prototype.incr = function (key, callback) {
   self._client.incr(key, callback);
 };
 
+RedisClient.prototype.getAll = function (keys, callback) {
+  var self = this;
+  
+  var client = self._client;
+
+  var fetchedKeys = [];
+  var errors = [];
+  var values = [];
+  var replyCount = 0;
+  
+  var n = keys.length;
+  
+  if (n == 0) {
+    callback(fetchedKeys, errors, values);
+    return;
+  }
+
+  _.each(keys, function(key) {
+    client.get(key, Meteor.bindEnvironment(function(err, value) {
+      if (err) {
+        Meteor._debug("Error getting key from redis: " + err);
+      }
+      fetchedKeys.push(key);
+      errors.push(err);
+      values.push(value);
+      
+      replyCount++;
+      if (replyCount == n) {
+        callback(fetchedKeys, errors, values);
+      }
+    }));
+  });
+};
+
+RedisClient.prototype.setAll = function (keys, values, callback) {
+  var self = this;
+  
+  var client = self._client;
+
+  var errors = [];
+  var results = [];
+  var replyCount = 0;
+  
+  var n = keys.length;
+  for (var i = 0; i < n; i++) {
+    var key = keys[i];
+    var value = values[i];
+    
+    client.set(key, value, Meteor.bindEnvironment(function(err, result) {
+      if (err) {
+        Meteor._debug("Error setting value in redis: " + err);
+      }
+      errors[i] = err;
+      results[i] = result;
+      
+      replyCount++;
+      if (replyCount == n) {
+        callback(errors, results);
+      }
+    }));
+  }
+};
