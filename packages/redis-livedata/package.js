@@ -53,10 +53,12 @@ Package.on_use(function (api) {
 
   api.add_files(['mongo_driver.js',
                  //'oplog_tailing.js',
+                 'redis_client.js',
+                 'redis_watcher.js',
                  'observe_multiplex.js',
                  'doc_fetcher.js',
                  'polling_observe_driver.js',
-                 //'oplog_observe_driver.js'
+                 'oplog_observe_driver.js',
                 ],
                 'server');
   api.add_files('local_collection_driver.js', ['client', 'server']);

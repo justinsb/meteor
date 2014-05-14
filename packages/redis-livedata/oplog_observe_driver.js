@@ -533,6 +533,9 @@ _.extend(OplogObserveDriver.prototype, {
       var canDirectlyModifyDoc =
             !isReplace && modifierCanBeDirectlyApplied(op.o);
 
+      isReplace = false;
+      canDirectlyModifyDoc = false;
+      
       var publishedBefore = self._published.has(id);
       var bufferedBefore = self._limit && self._unpublishedBuffer.has(id);
 
@@ -877,4 +880,4 @@ var modifierCanBeDirectlyApplied = function (modifier) {
   });
 };
 
-MongoInternals.OplogObserveDriver = OplogObserveDriver;
+RedisInternals.OplogObserveDriver = OplogObserveDriver;
