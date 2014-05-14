@@ -170,7 +170,7 @@ _.extend(OplogObserveDriver.prototype, {
     var self = this;
     var fields = _.clone(doc);
     delete fields._id;
-    self._published.set(id, self._sharedProjectionFn(doc));
+    self._published.set(id, self._limit ? self._sharedProjectionFn(doc) : {});
     self._multiplexer.added(id, self._projectionFn(fields));
 
     // After adding this document, the published set might be overflowed
@@ -248,8 +248,8 @@ _.extend(OplogObserveDriver.prototype, {
   },
   _changePublished: function (id, oldDoc, newDoc) {
     var self = this;
-    self._published.set(id, self._sharedProjectionFn(newDoc));
-    var changed = LocalCollection._makeChangedFields(_.clone(newDoc), oldDoc);
+    self._published.set(id, self._limit ? self._sharedProjectionFn(newDoc) : {});
+    var changed = _.clone(newDoc); //LocalCollection._makeChangedFields(_.clone(newDoc), oldDoc);
     changed = self._projectionFn(changed);
     if (!_.isEmpty(changed))
       self._multiplexer.changed(id, changed);
@@ -352,7 +352,7 @@ _.extend(OplogObserveDriver.prototype, {
     } else if (cachedBefore && !matchesNow) {
       self._removeMatching(id);
     } else if (cachedBefore && matchesNow) {
-      var oldDoc = self._published.get(id);
+      //var oldDoc = self._published.get(id);
       var comparator = self._comparator;
       var minBuffered = self._limit && self._unpublishedBuffer.size() &&
         self._unpublishedBuffer.get(self._unpublishedBuffer.minElementId());
@@ -370,7 +370,7 @@ _.extend(OplogObserveDriver.prototype, {
                                comparator(newDoc, minBuffered) <= 0;
 
         if (staysInPublished) {
-          self._changePublished(id, oldDoc, newDoc);
+          self._changePublished(id, undefined, newDoc);
         } else {
           // after the change doc doesn't stay in the published, remove it
           self._removePublished(id);
@@ -388,7 +388,7 @@ _.extend(OplogObserveDriver.prototype, {
           }
         }
       } else if (bufferedBefore) {
-        oldDoc = self._unpublishedBuffer.get(id);
+        //oldDoc = self._unpublishedBuffer.get(id);
         // remove the old version manually so we don't trigger the querying
         // immediately
         self._unpublishedBuffer.remove(id);
@@ -525,40 +525,40 @@ _.extend(OplogObserveDriver.prototype, {
       // database to figure out if the whole document matches the selector) or a
       // replacement (in which case we can just directly re-evaluate the
       // selector)?
-      var isReplace = !_.has(op.o, '$set') && !_.has(op.o, '$unset');
+//      var isReplace = !_.has(op.o, '$set') && !_.has(op.o, '$unset');
       // If this modifier modifies something inside an EJSON custom type (ie,
       // anything with EJSON$), then we can't try to use
       // LocalCollection._modify, since that just mutates the EJSON encoding,
       // not the actual object.
-      var canDirectlyModifyDoc =
-            !isReplace && modifierCanBeDirectlyApplied(op.o);
+//      var canDirectlyModifyDoc =
+//            !isReplace && modifierCanBeDirectlyApplied(op.o);
 
-      isReplace = false;
-      canDirectlyModifyDoc = false;
+//      isReplace = false;
+//      var canDirectlyModifyDoc = false;
       
-      var publishedBefore = self._published.has(id);
-      var bufferedBefore = self._limit && self._unpublishedBuffer.has(id);
+//      var publishedBefore = self._published.has(id);
+//      var bufferedBefore = self._limit && self._unpublishedBuffer.has(id);
 
-      if (isReplace) {
-        self._handleDoc(id, _.extend({_id: id}, op.o));
-      } else if ((publishedBefore || bufferedBefore) && canDirectlyModifyDoc) {
-        // Oh great, we actually know what the document is, so we can apply
-        // this directly.
-        var newDoc = self._published.has(id) ?
-          self._published.get(id) :
-          self._unpublishedBuffer.get(id);
-        newDoc = EJSON.clone(newDoc);
-
-        newDoc._id = id;
-        LocalCollection._modify(newDoc, op.o);
-        self._handleDoc(id, self._sharedProjectionFn(newDoc));
-      } else if (!canDirectlyModifyDoc ||
-                 self._matcher.canBecomeTrueByModifier(op.o) ||
-                 (self._sorter && self._sorter.affectedByModifier(op.o))) {
+//      if (isReplace) {
+//        self._handleDoc(id, _.extend({_id: id}, op.o));
+//      } else if ((publishedBefore || bufferedBefore) && canDirectlyModifyDoc) {
+//        // Oh great, we actually know what the document is, so we can apply
+//        // this directly.
+//        var newDoc = self._published.has(id) ?
+//          self._published.get(id) :
+//          self._unpublishedBuffer.get(id);
+//        newDoc = EJSON.clone(newDoc);
+//
+//        newDoc._id = id;
+//        LocalCollection._modify(newDoc, op.o);
+//        self._handleDoc(id, self._sharedProjectionFn(newDoc));
+//      } else if (!canDirectlyModifyDoc ||
+//                 self._matcher.canBecomeTrueByModifier(op.o) ||
+//                 (self._sorter && self._sorter.affectedByModifier(op.o))) {
         self._needToFetch.set(id, op.ts.toString());
         if (self._phase === PHASE.STEADY)
           self._fetchModifiedDocuments();
-      }
+//      }
     } else {
       throw Error("XXX SURPRISING OPERATION: " + op);
     }
