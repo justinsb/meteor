@@ -128,7 +128,6 @@ RedisCollection.prototype.find = function(selector, fields, options, callback) {
   return result;
 };
 
-
 RedisCollection.prototype.insert = function (docs, options, callback) {
   var self = this;
   Meteor._debug("RedisCollection.insert(" + JSON.stringify(arguments) + ")");
@@ -168,12 +167,9 @@ RedisCollection.prototype.insert = function (docs, options, callback) {
       }
       var err = "Error setting value in Redis";
       deferredCallback(err, null);
+      return;
     }
-    if (err) {
-      deferredCallback(err, null);
-    } else {
-      deferredCallback(null, values.length);
-    }
+    deferredCallback(null, values.length);
   });
 };
 
@@ -206,14 +202,14 @@ RedisCollection.prototype.update = function (selector, mod, options, callback) {
 
     Meteor._debug("Fetching keys: " + JSON.stringify(keys));
 
-    client.getAll(keys, function(fetchedKeys, errors, values) {
+    client.getAll(keys, function(errors, values) {
       var setKeys = [];
       var setValues = [];
       
       for (var i = 0; i < values.length; i++) {
         var value = values[i];
         if (value === null || value === undefined) {
-          Meteor._debug("Error reading key (concurrent modification?): " + fetchedKeys[i]);
+          Meteor._debug("Error reading key (concurrent modification?): " + keys[i]);
           continue;
         }
         var doc = JSON.parse(value);
@@ -221,12 +217,12 @@ RedisCollection.prototype.update = function (selector, mod, options, callback) {
           continue;
         }
         
-        Meteor._debug("Updating " + fetchedKeys[i] + ": " + value + " => " + JSON.stringify(doc));
+        Meteor._debug("Updating " + keys[i] + ": " + value + " => " + JSON.stringify(doc));
 
         LocalCollection._modify(doc, mod, options);
         
         // TODO: Validate id hasn't changed
-        var key = fetchedKeys[i];
+        var key = keys[i];
         var value = JSON.stringify(doc);
         
         setKeys.push(key);
@@ -285,6 +281,46 @@ RedisCollection.prototype.update = function (selector, mod, options, callback) {
         var docs = [newDoc];
         self.insert(collectionName, docs, options, insertCallback);
       }
+    });
+  });
+};
+
+
+RedisCollection.prototype.remove = function (selector, options, callback) {
+  Meteor._debug("RedisCollection.remove(" + JSON.stringify(arguments) + ")");
+  var self = this;
+  
+  var deferredCallback = function (err, result, extra) {
+    Meteor.defer(function () { callback(err, result, extra); });
+  };
+  
+  var collectionName = self.collectionName;
+  var matcher = new Minimongo.Matcher(selector, self);
+  var client = self.connection.db;
+
+  client.findCandidateKeys(collectionName, matcher, function (err, keys) {
+    if (err) {
+      if (err) {
+        Meteor._debug("Error listing keys in redis: " + err);
+      }
+      deferredCallback(err, null, extra);
+      return;
+    }
+
+    Meteor._debug("Deleting keys: " + JSON.stringify(keys));
+
+    client.removeAll(keys, function(errors, results) {
+      var err = null;
+      
+      for (var i = 0; i < errors.length; i++) {
+        if (errors[i]) {
+          Meteor._debug("Error deleting key: " + keys[i]);
+          err = errors[i];
+          break;
+        }
+      }
+      
+      deferredCallback(err, results.length);
     });
   });
 };
@@ -391,16 +427,16 @@ RedisCursor.prototype._getResults = function (callback) {
 
     Meteor._debug("Fetching keys: " + JSON.stringify(keys));
 
-    client.getAll(keys, function(fetchedKeys, errors, values) {
+    client.getAll(keys, function(errors, values) {
       for (var i = 0; i < values.length; i++) {
         var value = values[i];
         if (value === null || value === undefined) {
-          Meteor._debug("Error reading key (concurrent modification?): " + fetchedKeys[i]);
+          Meteor._debug("Error reading key (concurrent modification?): " + keys[i]);
           continue;
         }
         var doc = JSON.parse(value);
 
-//        Meteor._debug(fetchedKeys[i] + ": " + value + " => " + JSON.stringify(doc));
+//        Meteor._debug(keys[i] + ": " + value + " => " + JSON.stringify(doc));
 
         if (matcher.documentMatches(doc).result) {
           results.push(doc);

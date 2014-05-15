@@ -256,12 +256,15 @@ _.extend(RedisWatcher.prototype, {
         op.ts = self._sequenceSent;
 //        op.o['$set'] = {};
 //        op.o['$set']['dummy'] = 'dummy';
+      } else if (message == "del") {
+        op.op = 'd';
+        op.o = {};
+        op.o._id = id;
+        op.ts = self._sequenceSent;
       } else {
         Meteor._debug("Unknown message: " + message);
         return;
       }
-//      if (op.op === 'd')
-//        return op.o._id;
 //      else if (op.op === 'i')
 //        return op.o._id;
 //      else if (op.op === 'u')

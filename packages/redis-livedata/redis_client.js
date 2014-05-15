@@ -69,7 +69,6 @@ RedisClient.prototype.getAll = function (keys, callback) {
   
   var client = self._client;
 
-  var fetchedKeys = [];
   var errors = [];
   var values = [];
   var replyCount = 0;
@@ -77,22 +76,22 @@ RedisClient.prototype.getAll = function (keys, callback) {
   var n = keys.length;
   
   if (n == 0) {
-    callback(fetchedKeys, errors, values);
+    callback(errors, values);
     return;
   }
 
-  _.each(keys, function(key) {
+  _.each(_.range(n), function(i) {
+    var key = keys[i];
     client.get(key, Meteor.bindEnvironment(function(err, value) {
       if (err) {
         Meteor._debug("Error getting key from redis: " + err);
       }
-      fetchedKeys.push(key);
-      errors.push(err);
-      values.push(value);
+      errors[i] = err;
+      values[i] = value;
       
       replyCount++;
       if (replyCount == n) {
-        callback(fetchedKeys, errors, values);
+        callback(errors, values);
       }
     }));
   });
@@ -105,10 +104,15 @@ RedisClient.prototype.setAll = function (keys, values, callback) {
 
   var errors = [];
   var results = [];
-  var replyCount = 0;
   
   var n = keys.length;
-  for (var i = 0; i < n; i++) {
+  if (n == 0) {
+    callback(errors, results);
+    return;
+  }
+
+  var replyCount = 0;
+  _.each(_.range(n), function(i) {
     var key = keys[i];
     var value = values[i];
     
@@ -124,5 +128,38 @@ RedisClient.prototype.setAll = function (keys, values, callback) {
         callback(errors, results);
       }
     }));
+  });
+};
+
+
+RedisClient.prototype.removeAll = function (keys, callback) {
+  var self = this;
+  
+  var client = self._client;
+
+  var errors = [];
+  var results = [];
+  
+  var n = keys.length;
+  if (n == 0) {
+    callback(errors, results);
+    return;
   }
+
+  var replyCount = 0;
+  _.each(_.range(n), function(i) {
+    var key = keys[i];
+    client.del(key, Meteor.bindEnvironment(function(err, result) {
+      if (err) {
+        Meteor._debug("Error deleting key in redis: " + err);
+      }
+      errors[i] = err;
+      results[i] = result;
+      
+      replyCount++;
+      if (replyCount == n) {
+        callback(errors, results);
+      }
+    }));
+  });
 };
