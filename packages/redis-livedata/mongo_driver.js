@@ -217,16 +217,16 @@ RedisCollection.prototype.update = function (selector, mod, options, callback) {
           continue;
         }
         
-        Meteor._debug("Updating " + keys[i] + ": " + value + " => " + JSON.stringify(doc));
-
         LocalCollection._modify(doc, mod, options);
-        
+
         // TODO: Validate id hasn't changed
         var key = keys[i];
-        var value = JSON.stringify(doc);
+        var newValue = JSON.stringify(doc);
         
+        Meteor._debug("Updating " + keys[i] + ": " + value + " => " + newValue);
+
         setKeys.push(key);
-        setValues.push(value);
+        setValues.push(newValue);
       }
       
       if (setKeys.length) {
