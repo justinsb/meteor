@@ -1,0 +1,4 @@
+.npm/
+.project
+.settings/
+.build*

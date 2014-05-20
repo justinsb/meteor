@@ -171,7 +171,7 @@ SqlCollection.prototype.update = function (selector, mod, options, callback) {
   };
   
   var client = self.connection.db;
-  client.updateAll(self.tableName, selector, mod, options, deferredCallback);
+  client.updateAll(self._metadata, selector, mod, options, deferredCallback);
 };
 
 
@@ -183,11 +183,10 @@ SqlCollection.prototype.remove = function (selector, options, callback) {
     Meteor.defer(function () { callback(err, result, extra); });
   };
   
-  var tableName = self.tableName;
   var matcher = new Minimongo.Matcher(selector, self);
   var client = self.connection.db;
 
-  client.deleteWhere(tableName, matcher, function (err, count) {
+  client.deleteWhere(self._metadata, matcher, function (err, count) {
     deferredCallback(err, count);
   });
 };
