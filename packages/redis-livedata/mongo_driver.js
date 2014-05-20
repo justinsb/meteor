@@ -391,7 +391,7 @@ RedisCursor.prototype.count = function (applySkipLimit, callback) {
   self._getResults(function (err, results) {
     var result = null;
     if (err == null) {
-      result = self._results.length;
+      result = results.length;
     }
     callback(err, result);
   });
