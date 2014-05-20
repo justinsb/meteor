@@ -3,6 +3,29 @@
  */
 
 var NpmMysql = Npm.require('mysql');
+var Future = Npm.require('fibers/future');
+
+var POLL_INTERVAL = 1000;
+
+
+FutureCallback = function() {
+  var self = this;
+  self.f = new Future();
+};
+
+FutureCallback.prototype.callback = function (err, result) {
+  var self = this;
+  if (err) {
+    self.f.throw(err);
+  } else {
+    self.f.return(result);
+  }
+}
+
+FutureCallback.prototype.wait = function () {
+  var self = this;
+  return self.f.wait();
+}
 
 SqlClient = function(url, options) {
   var self = this;
@@ -132,6 +155,105 @@ SqlClient.prototype._mapDocToRow = function(metadata, doc) {
     row[metadata.jsonColumn] = JSON.stringify(json);
   }
   return row;
+};
+
+SqlClient.prototype.findMax = function(tableName, sortColumn, callback) {
+  var self = this;
+
+  var connection = self._connection;
+
+  var sql = "SELECT * FROM ?? ORDER BY ?? DESC LIMIT 1";
+  var params = [ tableName, sortColumn ];
+
+  var processRows = function(err, rows) {
+    if (err) {
+      callback(err, null);
+    } else {
+      if (rows.length == 0) {
+        callback(null, null);
+      } else {
+        callback(null, rows[0]);
+      }
+    }
+  };
+
+  Meteor._debug("Executing SQL: " + sql + " " + JSON.stringify(params));
+  connection.query(sql, params, Meteor.bindEnvironment(processRows));
+};
+
+SqlClient.prototype.pollTail = function(tableName, sortColumn, after, callback) {
+  var self = this;
+  Meteor.setTimeout(function () {
+    self._pollTail(tableName, sortColumn, after, callback);
+  }, POLL_INTERVAL);  
+};
+
+SqlClient.prototype._pollTail = function(tableName, sortColumn, after, callback) {
+  var self = this;
+
+  var connection = self._connection;
+
+  var sql;
+  var params;
+  
+  if (after === undefined || after === null) {
+    sql = "SELECT * FROM ?? ORDER BY ??";
+    params = [ tableName, sortColumn ] ;
+  } else {
+    sql = "SELECT * FROM ?? WHERE ?? > ? ORDER BY ??";
+    params = [ tableName, sortColumn, after, sortColumn ];
+  }
+  
+  var processRows = function(err, rows) {
+    var maxRow = undefined;
+    if (err) {
+      Meteor._debug("Ignoring error polling tail of event log (will retry): " + err);
+    } else {
+      for (var i = 0 ; i < rows.length; i++) {
+        var row = rows[i];
+        callback(row);
+        
+        maxRow = row[sortColumn];
+      }
+    }
+    
+    if (maxRow === undefined) {
+      maxRow = after;
+    }
+    
+    // TODO: Smart poll interval based on activity?
+    // TODO: Limit number of rows?
+    Meteor.setTimeout(function () {
+      self._pollTail(tableName, sortColumn, maxRow, callback);
+    }, POLL_INTERVAL);
+  };
+
+  Meteor._debug("Executing SQL: " + sql + " " + JSON.stringify(params));
+  connection.query(sql, params, Meteor.bindEnvironment(processRows));
+};
+
+SqlClient.prototype.findMax = function(tableName, sortColumn, callback) {
+  var self = this;
+
+  var connection = self._connection;
+
+  var sql = "SELECT * FROM ?? ORDER BY ?? DESC LIMIT 1";
+  var params = [ tableName, sortColumn ];
+
+  var processRows = function(err, rows) {
+    if (err) {
+      callback(err, null);
+    } else {
+      if (rows.length == 0) {
+        callback(null, null);
+      } else {
+        callback(null, rows[0]);
+      }
+    }
+  };
+
+  Meteor._debug("Executing SQL: " + sql + " " + JSON.stringify(params));
+  connection.query(sql, params, Meteor.bindEnvironment(processRows));
 };
 
 SqlClient.prototype._findMatching = function(metadata, matcher, sorter, skip,

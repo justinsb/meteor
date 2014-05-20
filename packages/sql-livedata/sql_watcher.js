@@ -1,7 +1,6 @@
 var Future = Npm.require('fibers/future');
 
-OPLOG_COLLECTION = 'oplog.rs';
-var REPLSET_COLLECTION = 'system.replset';
+OPLOG_TABLE = '_meteor_events';
 
 // Like Perl's quotemeta: quotes all regexp metacharacters. See
 //   https://github.com/substack/quotemeta/blob/master/index.js
@@ -28,10 +27,10 @@ idForOp = function (op) {
     throw Error("Unknown op: " + EJSON.stringify(op));
 };
 
-SqlWatcher = function (oplogUrl) {
+SqlOplogHandle = function (oplogUrl, dbName) {
   var self = this;
   self._oplogUrl = oplogUrl;
-//  self._dbName = dbName;
+  self._dbName = dbName;
 
   self._oplogLastEntryConnection = null;
   self._oplogTailConnection = null;
@@ -39,23 +38,23 @@ SqlWatcher = function (oplogUrl) {
   self._tailHandle = null;
   self._readyFuture = new Future();
   self._crossbar = new DDPServer._Crossbar({
-    factPackage: "mongo-livedata", factName: "oplog-watchers"
+    factPackage: "sql-livedata", factName: "oplog-watchers"
   });
   self._lastProcessedTS = null;
-//  self._baseOplogSelector = {
-//    ns: new RegExp('^' + quotemeta(self._dbName) + '\\.'),
-//    $or: [
-//      { op: {$in: ['i', 'u', 'd']} },
-//      // If it is not db.collection.drop(), ignore it
-//      { op: 'c', 'o.drop': { $exists: true } }]
-//  };
+  self._baseOplogSelector = {
+    ns: new RegExp('^' + quotemeta(self._dbName) + '\\.'),
+    $or: [
+      { op: {$in: ['i', 'u', 'd']} },
+      // If it is not db.collection.drop(), ignore it
+      { op: 'c', 'o.drop': { $exists: true } }]
+  };
   // XXX doc
   self._catchingUpFutures = [];
 
   self._startTailing();
 };
 
-_.extend(SqlWatcher.prototype, {
+_.extend(SqlOplogHandle.prototype, {
   stop: function () {
     var self = this;
     if (self._stopped)
@@ -101,84 +100,56 @@ _.extend(SqlWatcher.prototype, {
     // be ready.
     self._readyFuture.wait();
 
-//    while (!self._stopped) {
-//      // We need to make the selector at least as restrictive as the actual
-//      // tailing selector (ie, we need to specify the DB name) or else we might
-//      // find a TS that won't show up in the actual tail stream.
-//      try {
+    while (!self._stopped) {
+      // We need to make the selector at least as restrictive as the actual
+      // tailing selector (ie, we need to specify the DB name) or else we might
+      // find a TS that won't show up in the actual tail stream.
+      try {
 //        var lastEntry = self._oplogLastEntryConnection.findOne(
 //          OPLOG_COLLECTION, self._baseOplogSelector,
 //          {fields: {ts: 1}, sort: {$natural: -1}});
-//        break;
-//      } catch (e) {
-//        // During failover (eg) if we get an exception we should log and retry
-//        // instead of crashing.
-//        Meteor._debug("Got exception while reading last entry: " + e);
-//        Meteor._sleepForMs(100);
-//      }
-//    }
-    
+        var f = new FutureCallback();
+        self._oplogLastEntryConnection.findMax(
+            OPLOG_TABLE, "id", function (err, results) { f.callback(err, results); } );
+        var lastEntry = f.wait();
+        break;
+      } catch (e) {
+        // During failover (eg) if we get an exception we should log and retry
+        // instead of crashing.
+        Meteor._debug("Got exception while reading last entry: " + e);
+        Meteor._sleepForMs(100);
+      }
+    }
+
     if (self._stopped)
       return;
 
-//    if (!lastEntry) {
-//      // Really, nothing in the oplog? Well, we've processed everything.
-//      return;
-//    }
+    if (!lastEntry) {
+      // Really, nothing in the oplog? Well, we've processed everything.
+      return;
+    }
 
-    var ts = self._sendSequenceKey();
-//    var ts = lastEntry.ts;
-//    if (!ts)
-//      throw Error("oplog entry without ts: " + EJSON.stringify(lastEntry));
+    var ts = lastEntry.id;
+    if (!ts)
+      throw Error("oplog entry without ts: " + EJSON.stringify(lastEntry));
 
-//    if (self._lastProcessedTS && ts.lessThanOrEqual(self._lastProcessedTS)) {
-//      // We've already caught up to here.
-//      return;
-//    }
-//
-//
+    if (self._lastProcessedTS && ts <= self._lastProcessedTS) {
+      // We've already caught up to here.
+      return;
+    }
+
+
     // Insert the future into our list. Almost always, this will be at the end,
     // but it's conceivable that if we fail over from one primary to another,
     // the oplog entries we see will go backwards.
     var insertAfter = self._catchingUpFutures.length;
     while (insertAfter - 1 > 0
-           && self._catchingUpFutures[insertAfter - 1].ts.greaterThan(ts)) {
+           && (self._catchingUpFutures[insertAfter - 1].ts > ts)) {
       insertAfter--;
     }
     var f = new Future;
     self._catchingUpFutures.splice(insertAfter, 0, {ts: ts, future: f});
     f.wait();
-  },
-  _sendSequenceKey: function () {
-    var self = this;
-    
-    self._oplogSequenceConnection.incr(self._sequenceKey, function (err, results) {
-      if (err != null) {
-        // TODO: Panic?
-        Meteor._debug("Error while sending sequence key: " + err);
-      } else {
-        self._sequenceAcked++;
-      }
-    });
-    self._sequenceSent++;
-    Meteor._debug("Sent sequence key: " + self._sequenceSent);
-    return self._sequenceSent;
-  },
-  _gotSequenceKey: function() {
-    var self = this;
-    
-    self._sequenceSeen++;
-
-    Meteor._debug("Got sequence key: " + self._sequenceSeen);
-
-    var ts = self._sequenceSeen;
-    // Now that we've processed this operation, process pending sequencers.
-    while (!_.isEmpty(self._catchingUpFutures)
-      && (self._catchingUpFutures[0].ts <= ts)) {
-      Meteor._debug("Firing caught up...");
-      var sequencer = self._catchingUpFutures.shift();
-      sequencer.future.return();
-    }  
   },
   _startTailing: function () {
     var self = this;
@@ -193,25 +164,16 @@ _.extend(SqlWatcher.prototype, {
     //
     // The tail connection will only ever be running a single tail command, so
     // it only needs to make one underlying TCP connection.
-    self._oplogTailConnection = new RedisClient(
+    self._oplogTailConnection = new SqlClient(
       self._oplogUrl, {poolSize: 1});
-
     // XXX better docs, but: it's to get monotonic results
     // XXX is it safe to say "if there's an in flight query, just use its
     //     results"? I don't think so but should consider that
-//    self._oplogLastEntryConnection = new RedisClient(
-//      self._oplogUrl, {poolSize: 1});
-
-    self._oplogSequenceConnection = new RedisClient(
+    self._oplogLastEntryConnection = new SqlClient(
       self._oplogUrl, {poolSize: 1});
 
-    self._sequenceSent = 0;
-    self._sequenceAcked = 0;
-    self._sequenceSeen = 0;
-    self._sequenceKey = "sequence::" + Random.id();
-    
-    // First, make sure that there actually is a repl set here. If not, oplog
-    // tailing won't ever find anything! (Blocks until the connection is ready.)
+//    // First, make sure that there actually is a repl set here. If not, oplog
+//    // tailing won't ever find anything! (Blocks until the connection is ready.)
 //    var replSetInfo = self._oplogLastEntryConnection.findOne(
 //      REPLSET_COLLECTION, {});
 //    if (!replSetInfo)
@@ -219,130 +181,86 @@ _.extend(SqlWatcher.prototype, {
 //                  "a Mongo replica set");
 
     // Find the last oplog entry.
-//    var lastOplogEntry = self._oplogLastEntryConnection.findOne(
-//      OPLOG_COLLECTION, {}, {sort: {$natural: -1}, fields: {ts: 1}});
+    var f = new FutureCallback();
+    self._oplogLastEntryConnection.findMax(
+        OPLOG_TABLE, "id", function (err, results) { f.callback(err, results); } );
+    var lastOplogEntry = f.wait();
+    
 
 //    var oplogSelector = _.clone(self._baseOplogSelector);
-//    if (lastOplogEntry) {
-//      // Start after the last entry that currently exists.
+    var from = undefined;
+    if (lastOplogEntry) {
+      // Start after the last entry that currently exists.
 //      oplogSelector.ts = {$gt: lastOplogEntry.ts};
-//      // If there are any calls to callWhenProcessedLatest before any other
-//      // oplog entries show up, allow callWhenProcessedLatest to call its
-//      // callback immediately.
-//      self._lastProcessedTS = lastOplogEntry.ts;
-//    }
-    
-    var listener = function (key, message) {
-      if (key == self._sequenceKey) {
-        self._gotSequenceKey();
-        return;
-      }
+      from = lastOplogEntry.id;
+      // If there are any calls to callWhenProcessedLatest before any other
+      // oplog entries show up, allow callWhenProcessedLatest to call its
+      // callback immediately.
+      self._lastProcessedTS = lastOplogEntry.ts;
+    }
 
-      var tokens = key.split("//", 2);
-      if (tokens.length != 2) {
-        Meteor._debug("Cannot parse notified key: " + key);
-        return;
-      }
-      
-      var op = {};
-      var id = tokens[1];
-      
-      if (message == "set") {
-        // We can't differentiate between insert & update for Redis
-        op.op = 'u';
-        op.o2 = {};
-        op.o2._id = id;
-        op.o = {};
-        op.ts = self._sequenceSent;
-//        op.o['$set'] = {};
-//        op.o['$set']['dummy'] = 'dummy';
-      } else if (message == "del") {
-        op.op = 'd';
-        op.o = {};
-        op.o._id = id;
-        op.ts = self._sequenceSent;
-      } else {
-        Meteor._debug("Unknown message: " + message);
-        return;
-      }
-//      else if (op.op === 'i')
-//        return op.o._id;
-//      else if (op.op === 'u')
-//        return op.o2._id;
-//      else if (op.op === 'c')
-//        throw Error("Operator 'c' doesn't supply an object with id: " +
-//                    EJSON.stringify(op));
-//      else
-
-      var trigger = {
-          collection: tokens[0],
-          dropCollection: false,
-          op: op,
-          id: tokens[1]
-      };
-
-      Meteor._debug("Sending trigger: " + JSON.stringify(trigger));
-//      // Is it a special command and the collection name is hidden somewhere
-//      // in operator?
-//      if (trigger.collection === "$cmd") {
-//      trigger.collection = doc.o.drop;
-//      trigger.dropCollection = true;
-//      trigger.id = null;
-//      } else {
-//      // All other ops have an id.
-//      trigger.id = idForOp(doc);
-//      }
-      
-      self._crossbar.fire(trigger);
-    };
-    
-    self._oplogTailConnection.subscribeKeyspaceEvents(function (err, results) {
-      if (err != null) {
-        Meteor._debug("Error subscribing to redis changes: " + JSON.stringify(err));
-        self._readyFuture.throw(new Error("Error subscribing to redis changes"));
-      } else {
-        self._readyFuture.return();
-      }
-    }, listener);
-
-//    var cursorDescription = new CursorDescription(
-//      OPLOG_COLLECTION, oplogSelector, {tailable: true});
-//
-//    self._tailHandle = self._oplogTailConnection.tail(
-//      cursorDescription, function (doc) {
+    self._tailHandle = self._oplogTailConnection.pollTail(
+        OPLOG_TABLE, "id", from, function (row) {
 //        if (!(doc.ns && doc.ns.length > self._dbName.length + 1 &&
 //              doc.ns.substr(0, self._dbName.length + 1) ===
 //              (self._dbName + '.'))) {
 //          throw new Error("Unexpected ns");
 //        }
-//
-//        var trigger = {collection: doc.ns.substr(self._dbName.length + 1),
-//                       dropCollection: false,
-//                       op: doc};
-//
-//        // Is it a special command and the collection name is hidden somewhere
-//        // in operator?
-//        if (trigger.collection === "$cmd") {
-//          trigger.collection = doc.o.drop;
-//          trigger.dropCollection = true;
-//          trigger.id = null;
-//        } else {
-//          // All other ops have an id.
-//          trigger.id = idForOp(doc);
-//        }
-//
-//        self._crossbar.fire(trigger);
-//
-//        // Now that we've processed this operation, process pending sequencers.
-//        if (!doc.ts)
-//          throw Error("oplog entry without ts: " + EJSON.stringify(doc));
-//        self._lastProcessedTS = doc.ts;
-//        while (!_.isEmpty(self._catchingUpFutures)
-//               && self._catchingUpFutures[0].ts.lessThanOrEqual(
-//                 self._lastProcessedTS)) {
-//          var sequencer = self._catchingUpFutures.shift();
-//          sequencer.future.return();
-//        }
-//      });
+
+          var op = {};
+          var id = row.row_key;
+          var action = row.action;
+          var tableName = row.table_name;
+          var ts = row.id;
+          
+          if (action == "u") {
+            // We can't differentiate between insert & update for Redis
+            op.op = 'u';
+            op.o2 = {};
+            op.o2._id = id;
+            op.o = {};
+            op.ts = ts;
+          } else if (action == "d") {
+            op.op = 'd';
+            op.o = {};
+            op.o._id = id;
+            op.ts = ts;
+          } else if (action == "i") {
+            // TODO: We pretend this is an update, because the mongo logic assumed that an insert was entirely present
+            op.op = 'u';
+            op.o2 = {};
+            op.o2._id = id;
+            op.o = {};
+            op.ts = ts;
+          } else {
+            Meteor._debug("Unknown message: " + message);
+            return;
+          }
+          
+          Meteor._debug("DB change event: " + JSON.stringify(arguments));
+          
+          var trigger = {
+              collection: tableName,
+              dropCollection: false,
+              op: op,
+              id: id
+          };
+
+          Meteor._debug("Sending trigger: " + JSON.stringify(trigger));
+
+        self._crossbar.fire(trigger);
+
+        // Now that we've processed this operation, process pending sequencers.
+        if (!ts)
+          throw Error("oplog entry without ts: " + EJSON.stringify(doc));
+        self._lastProcessedTS = ts;
+        while (!_.isEmpty(self._catchingUpFutures)
+               && (self._catchingUpFutures[0].ts <= 
+                 self._lastProcessedTS)) {
+          var sequencer = self._catchingUpFutures.shift();
+          sequencer.future.return();
+        }
+      });
+    self._readyFuture.return();
   }
 });

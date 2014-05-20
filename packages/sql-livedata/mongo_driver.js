@@ -387,7 +387,7 @@ SqlConnection = function (url, options) {
 // });
 // self._oplogHandle = new OplogHandle(options.oplogUrl, dbNameFuture.wait());
 // }
-  // self._oplogHandle = new SqlWatcher(url);
+   self._oplogHandle = new SqlOplogHandle(url);
 };
 
 SqlConnection.prototype.close = function() {
