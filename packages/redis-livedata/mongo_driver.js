@@ -307,6 +307,7 @@ RedisCollection.prototype.remove = function (selector, options, callback) {
       return;
     }
 
+    // TODO: Need to filter keys!!
     Meteor._debug("Deleting keys: " + JSON.stringify(keys));
 
     client.removeAll(keys, function(errors, results) {
