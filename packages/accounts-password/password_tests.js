@@ -52,6 +52,7 @@ if (Meteor.isClient) (function () {
 
   testAsyncMulti("passwords - basic login with password", [
     function (test, expect) {
+      Meteor._debug("The time is now " + (new Date));
       // setup
       this.username = Random.id();
       this.email = Random.id() + '-intercept@example.com';

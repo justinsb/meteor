@@ -860,6 +860,8 @@ var expireTokenInterval;
 // for them to actually expire. userId is used by tests to only expire
 // tokens for the test user.
 var expireTokens = Accounts._expireTokens = function (oldestValidDate, userId) {
+  Meteor._debug(">>> Accounts._expireTokens " + JSON.stringify(arguments));
+
   var tokenLifetimeMs = getTokenLifetimeMs();
 
   // when calling from a test with extra arguments, you must specify both!
