@@ -8,6 +8,8 @@
 // @param password {String}
 // @param callback {Function(error|undefined)}
 Meteor.loginWithPassword = function (selector, password, callback) {
+  Meteor._debug(">>> Meteor.loginWithPassword " + JSON.stringify(arguments));
+
   var srp = new SRP.Client(password);
   var request = srp.startExchange();
 

@@ -524,7 +524,7 @@ Meteor.methods({verifyEmail: function (token) {
 //
 // returns the user id
 var createUser = function (options) {
-  Meteor._debug("in createUser");
+  Meteor._debug(">>> createUser " + JSON.stringify(arguments));
   // Unknown keys allowed, because a onCreateUserHook can take arbitrary
   // options.
   check(options, Match.ObjectIncluding({

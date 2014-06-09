@@ -60,6 +60,8 @@ Meteor.user = function () {
 //                 logged in, or with the error on error.
 //
 Accounts.callLoginMethod = function (options) {
+  Meteor._debug(">>> Accounts.callLoginMethod " + JSON.stringify(arguments));
+
   options = _.extend({
     methodName: 'login',
     methodArguments: [],

@@ -980,7 +980,7 @@ var defaultCreateUserHook = function (options, user) {
 
 // Called by accounts-password
 Accounts.insertUserDoc = function (options, user) {
-  Meteor._debug(">>> insertUserDoc");
+  Meteor._debug(">>> insertUserDoc " + JSON.stringify(arguments));
 
   // - clone user document, to protect from modification
   // - add createdAt timestamp
