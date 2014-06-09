@@ -979,6 +979,8 @@ var defaultCreateUserHook = function (options, user) {
 
 // Called by accounts-password
 Accounts.insertUserDoc = function (options, user) {
+  Meteor._debug(">>> insertUserDoc");
+
   // - clone user document, to protect from modification
   // - add createdAt timestamp
   // - prepare an _id, so that you can modify other collections (eg
@@ -1020,6 +1022,8 @@ Accounts.insertUserDoc = function (options, user) {
   try {
     userId = Meteor.users.insert(fullUser);
   } catch (e) {
+    Meteor._debug("Error inserting user: " + e);
+
     // XXX string parsing sucks, maybe
     // https://jira.mongodb.org/browse/SERVER-3069 will get fixed one day
     if (e.name !== 'MongoError') throw e;
@@ -1032,6 +1036,7 @@ Accounts.insertUserDoc = function (options, user) {
     // XXX better error reporting for services.facebook.id duplicate, etc
     throw e;
   }
+  Meteor._debug("Inserted user: " + userId);
   return userId;
 };
 

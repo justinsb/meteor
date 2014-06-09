@@ -523,6 +523,7 @@ Meteor.methods({verifyEmail: function (token) {
 //
 // returns the user id
 var createUser = function (options) {
+  Meteor._debug("in createUser");
   // Unknown keys allowed, because a onCreateUserHook can take arbitrary
   // options.
   check(options, Match.ObjectIncluding({
@@ -553,6 +554,8 @@ var createUser = function (options) {
     user.username = username;
   if (email)
     user.emails = [{address: email, verified: false}];
+
+  Meteor._debug("createUser before insertUserDoc");
 
   return Accounts.insertUserDoc(options, user);
 };

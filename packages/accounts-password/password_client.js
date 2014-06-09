@@ -48,6 +48,8 @@ Meteor.loginWithPassword = function (selector, password, callback) {
 
 // Attempt to log in as a new user.
 Accounts.createUser = function (options, callback) {
+  Meteor._debug("In Accounts.createUser");
+
   options = _.clone(options); // we'll be modifying options
 
   if (!options.password)
@@ -56,6 +58,8 @@ Accounts.createUser = function (options, callback) {
   // strip old password, replacing with the verifier object
   delete options.password;
   options.srp = verifier;
+
+  Meteor._debug("Calling login method createUser");
 
   Accounts.callLoginMethod({
     methodName: 'createUser',
