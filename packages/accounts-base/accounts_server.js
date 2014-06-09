@@ -231,6 +231,7 @@ var loginUser = function (methodInvocation, userId, stampedLoginToken) {
 // callback, log in the user.
 //
 var attemptLogin = function (methodInvocation, methodName, methodArgs, result) {
+  Meteor._debug("attemptLogin: " + JSON.stringify(arguments));
   if (!result)
     throw new Error("result is required");
 

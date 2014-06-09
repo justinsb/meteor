@@ -91,6 +91,7 @@ Accounts.callLoginMethod = function (options) {
   // that the "reconnect quiesce"-time call to loggedInAndDataReadyCallback
   // will occur before the callback from the resume login call.)
   var onResultReceived = function (err, result) {
+    Meteor._debug("Accounts.callLoginMethod onResultReceived " + err + ", " + result);
     if (err || !result || !result.token) {
       Accounts.connection.onReconnect = null;
     } else {
@@ -153,6 +154,7 @@ Accounts.callLoginMethod = function (options) {
   // subscription (and all subscriptions, in fact) are guaranteed to be up to
   // date.
   var loggedInAndDataReadyCallback = function (error, result) {
+    Meteor._debug("Accounts.callLoginMethod loggedInAndDataReadyCallback " + error + ", " + result);
     // If the login method returns its result but the connection is lost
     // before the data is in the local cache, it'll set an onReconnect (see
     // above). The onReconnect will try to log in using the token, and *it*
@@ -185,6 +187,9 @@ Accounts.callLoginMethod = function (options) {
 
   if (!options._suppressLoggingIn)
     Accounts._setLoggingIn(true);
+  
+  Meteor._debug("About to call method: " + options.methodName);
+
   Accounts.connection.apply(
     options.methodName,
     options.methodArguments,

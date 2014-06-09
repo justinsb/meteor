@@ -416,6 +416,7 @@ Meteor.methods({resetPassword: function (token, newVerifier) {
 // address as verified
 //
 Accounts.sendVerificationEmail = function (userId, address) {
+  Meteor._debug("sendVerificationEmail: " + JSON.stringify(arguments));
   // XXX Also generate a link using which someone can delete this
   // account if they own said address but weren't those who created
   // this account.
@@ -588,6 +589,8 @@ Meteor.methods({createUser: function (options) {
       // that address.
       if (options.email && Accounts._options.sendVerificationEmail)
         Accounts.sendVerificationEmail(userId, options.email);
+
+      Meteor._debug("createUser returning " + userId);
 
       // client gets logged in as the new user afterwards.
       return {userId: userId};
