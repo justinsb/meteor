@@ -13,6 +13,7 @@ var suppress = 0;
 //
 Meteor._debug = function (/* arguments */) {
   if (suppress) {
+    console.log("Output suppressed");
     suppress--;
     return;
   }

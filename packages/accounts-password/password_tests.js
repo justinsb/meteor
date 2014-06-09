@@ -24,7 +24,7 @@ if (Meteor.isClient) (function () {
   };
   var loggedInAs = function (someUsername, test, expect) {
     return expect(function (error) {
-      Meteor._debug("Checking logged in.  Current user=" + Meteor.user());
+      Meteor._debug("Checking logged in.  Current user=" + Meteor.userId());
       test.equal(error, undefined);
       test.equal(Meteor.user().username, someUsername);
     });
