@@ -16,6 +16,7 @@ if (Meteor.isClient) (function () {
   Accounts._isolateLoginTokenForTest();
 
   var logoutStep = function (test, expect) {
+    Meteor._debug("Logging out");
     Meteor.logout(expect(function (error) {
       test.equal(error, undefined);
       test.equal(Meteor.user(), null);
@@ -23,6 +24,7 @@ if (Meteor.isClient) (function () {
   };
   var loggedInAs = function (someUsername, test, expect) {
     return expect(function (error) {
+      Meteor._debug("Checking logged in.  Current user=" + Meteor.user());
       test.equal(error, undefined);
       test.equal(Meteor.user().username, someUsername);
     });
@@ -55,15 +57,18 @@ if (Meteor.isClient) (function () {
       this.email = Random.id() + '-intercept@example.com';
       this.password = 'password';
 
+      Meteor._debug("Creating user: " + this.username);
       Accounts.createUser(
         {username: this.username, email: this.email, password: this.password},
         loggedInAs(this.username, test, expect));
     },
     function (test, expect) {
+      Meteor._debug("Created user: " + Meteor.userId());
       test.notEqual(Meteor.userId(), null);
     },
     logoutStep,
     function (test, expect) {
+      Meteor._debug("Logging in (#1) with password as user: " + this.username);
       Meteor.loginWithPassword(this.username, this.password,
                                loggedInAs(this.username, test, expect));
     },
@@ -80,29 +85,36 @@ if (Meteor.isClient) (function () {
       });
       // At the beginning, we're not logged in.
       test.isFalse(loaded);
+      Meteor._debug("Logging in (#2) with password as user: " + this.username);
       Meteor.loginWithPassword(this.username, this.password, expect(function (error) {
+        Meteor._debug("Logged in as user: " + Meteor.userId());
         test.equal(error, undefined);
         test.notEqual(Meteor.userId(), null);
         // By the time of the login callback, the user should be loaded.
         test.isTrue(Meteor.user().emails);
         // Flushing should get us the rerun as well.
+        Meteor._debug("Flushing deps");
         Deps.flush();
         test.isTrue(loaded);
         handle.stop();
+        Meteor._debug("Done with login callback");
       }));
     },
     logoutStep,
     function (test, expect) {
+      Meteor._debug("Logging in (#3) with password as user: " + this.username);
       Meteor.loginWithPassword({username: this.username}, this.password,
                                loggedInAs(this.username, test, expect));
     },
     logoutStep,
     function (test, expect) {
+      Meteor._debug("Logging in (#4) with password as user: " + this.username);
       Meteor.loginWithPassword(this.email, this.password,
                                loggedInAs(this.username, test, expect));
     },
     logoutStep,
     function (test, expect) {
+      Meteor._debug("Logging in (#5) with password as user: " + this.username);
       Meteor.loginWithPassword({email: this.email}, this.password,
                                loggedInAs(this.username, test, expect));
     },
