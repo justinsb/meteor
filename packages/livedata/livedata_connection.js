@@ -214,6 +214,8 @@ var Connection = function (url, options) {
       return;
     }
 
+    Meteor._debug("Got DDP message: " + JSON.stringify(msg));
+
     if (msg.msg === 'connected') {
       self._version = self._versionSuggestion;
       options.onConnected();
@@ -908,6 +910,7 @@ _.extend(Connection.prototype, {
   // Sends the DDP stringification of the given message object
   _send: function (obj) {
     var self = this;
+    Meteor._debug("Sending DDP message: " + JSON.stringify(obj));
     self._stream.send(stringifyDDP(obj));
   },
 

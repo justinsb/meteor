@@ -454,7 +454,7 @@ _.extend(Session.prototype, {
   send: function (msg) {
     var self = this;
     if (self.socket) {
-      if (Meteor._printSentDDP)
+      if (Meteor._printSentDDP || true)
         Meteor._debug("Sent DDP", stringifyDDP(msg));
       self.socket.send(stringifyDDP(msg));
     }
@@ -1171,6 +1171,8 @@ Server = function (options) {
           sendError('Bad request', msg);
           return;
         }
+
+        Meteor._debug("Got DDP message: " + JSON.stringify(msg));
 
         if (msg.msg === 'connect') {
           if (socket._meteorSession) {
