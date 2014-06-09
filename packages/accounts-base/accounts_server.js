@@ -194,6 +194,8 @@ var tryLoginMethod = function (type, fn) {
 // database and doesn't need to be inserted again.  (It's used by the
 // "resume" login handler).
 var loginUser = function (methodInvocation, userId, stampedLoginToken) {
+  Meteor._debug(">>> loginUser " + JSON.stringify(arguments));
+
   if (! stampedLoginToken) {
     stampedLoginToken = Accounts._generateStampedLoginToken();
     Accounts._insertLoginToken(userId, stampedLoginToken);
@@ -213,6 +215,8 @@ var loginUser = function (methodInvocation, userId, stampedLoginToken) {
     );
   });
 
+  Meteor._debug("loginUser: setting user id to " + userId);
+
   methodInvocation.setUserId(userId);
 
   return {
@@ -231,7 +235,7 @@ var loginUser = function (methodInvocation, userId, stampedLoginToken) {
 // callback, log in the user.
 //
 var attemptLogin = function (methodInvocation, methodName, methodArgs, result) {
-  Meteor._debug("attemptLogin: " + JSON.stringify(arguments));
+  Meteor._debug(">>> attemptLogin: " + JSON.stringify(arguments));
   if (!result)
     throw new Error("result is required");
 
@@ -262,6 +266,7 @@ var attemptLogin = function (methodInvocation, methodName, methodArgs, result) {
   validateLogin(methodInvocation.connection, attempt);
 
   if (attempt.allowed) {
+    Meteor._debug("attempt allowed.  attempt=" + JSON.stringify(attempt));
     var ret = _.extend(
       loginUser(methodInvocation, result.userId, result.stampedLoginToken),
       result.options || {}
@@ -270,6 +275,7 @@ var attemptLogin = function (methodInvocation, methodName, methodArgs, result) {
     return ret;
   }
   else {
+    Meteor._debug("failedLogin");
     failedLogin(methodInvocation.connection, attempt);
     throw attempt.error;
   }
@@ -666,6 +672,8 @@ Accounts._getLoginToken = function (connectionId) {
 
 // newToken is a hashed token.
 Accounts._setLoginToken = function (userId, connection, newToken) {
+  Meteor._debug(">>> _setLoginToken " + JSON.stringify(arguments));
+
   removeTokenFromConnection(connection.id);
   Accounts._setAccountData(connection.id, 'loginToken', newToken);
 
