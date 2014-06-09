@@ -60,7 +60,7 @@ Meteor.user = function () {
 //                 logged in, or with the error on error.
 //
 Accounts.callLoginMethod = function (options) {
-  Meteor._debug(">>> Accounts.callLoginMethod " + JSON.stringify(arguments));
+  Meteor._debug(">>> (client) Accounts.callLoginMethod " + JSON.stringify(arguments));
 
   options = _.extend({
     methodName: 'login',
@@ -190,7 +190,7 @@ Accounts.callLoginMethod = function (options) {
   if (!options._suppressLoggingIn)
     Accounts._setLoggingIn(true);
   
-  Meteor._debug("About to call method: " + options.methodName);
+  Meteor._debug("About to call method: " + options.methodName + "(" + JSON.stringify(options.methodArguments) +")");
 
   Accounts.connection.apply(
     options.methodName,

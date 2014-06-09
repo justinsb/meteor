@@ -611,6 +611,8 @@ Meteor.methods({createUser: function (options) {
 // method calling Accounts.createUser could set?
 //
 Accounts.createUser = function (options, callback) {
+  Meteor._debug(">>> server Accounts.createUser " + JSON.stringify(arguments));
+
   options = _.clone(options);
 
   // XXX allow an optional callback?

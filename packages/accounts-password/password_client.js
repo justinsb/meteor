@@ -50,7 +50,7 @@ Meteor.loginWithPassword = function (selector, password, callback) {
 
 // Attempt to log in as a new user.
 Accounts.createUser = function (options, callback) {
-  Meteor._debug("In Accounts.createUser");
+  Meteor._debug(">>> (client) Accounts.createUser " + JSON.stringify(arguments));
 
   options = _.clone(options); // we'll be modifying options
 
