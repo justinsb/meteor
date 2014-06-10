@@ -28,13 +28,6 @@ Tinytest._runTestsEverywhere = function (onReport, onComplete, pathPrefix) {
       // we really only should see one runId here.
       if (msg.id !== runId)
         return;
-      if (msg.done) {
-        remoteComplete = true;
-        handle.stop();
-        Meteor.call('tinytest/clearResults', runId);
-        maybeDone();
-        return;
-      }
       // This will only work for added & changed messages.
       // hope that is all you get.
       _.each(msg.fields, function (report) {
@@ -44,6 +37,13 @@ Tinytest._runTestsEverywhere = function (onReport, onComplete, pathPrefix) {
         report.server = true;
         onReport(report);
       });
+      // Check if we have the 'done' message
+      if (_.has(msg.fields, 'done')) {
+        remoteComplete = true;
+        handle.stop();
+        Meteor.call('tinytest/clearResults', runId);
+        maybeDone();
+      }
     }
   });
 

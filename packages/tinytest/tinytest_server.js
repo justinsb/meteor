@@ -29,15 +29,14 @@ Meteor.methods({
 
     reportsForRun[runId] = {};
 
-    var addDatum = function (datum) {
-      var dummyKey = Random.id();
+    var addReport = function (key, report) {
       var fields = {};
-      fields[dummyKey] = datum;
+      fields[key] = report;
       _.each(handlesForRun[runId], function (handle) {
         handle.changed(Meteor._ServerTestResultsCollection, runId, fields);
       });
       // Save for future subscriptions.
-      reportsForRun[runId][dummyKey] = report;
+      reportsForRun[runId][key] = report;
     };
 
     var onReport = function (report) {
@@ -46,7 +45,8 @@ Meteor.methods({
                       "You probably forgot to wrap a callback in bindEnvironment.");
         console.trace();
       }
-      addDatum(report);
+      var dummyKey = Random.id();
+      addReport(dummyKey, report);
     };
 
     var onComplete = function() {
@@ -55,8 +55,9 @@ Meteor.methods({
                       "You probably forgot to wrap a callback in bindEnvironment.");
         console.trace();
       }
-      var datum = { id: runId, done: true };
-      addDatum(datum);
+      var report = { done: true };
+      var doneKey = 'done';
+      addReport(doneKey, report);
     };
 
     Tinytest._runTests(onReport, onComplete, pathPrefix);
