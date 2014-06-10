@@ -31,6 +31,10 @@ Tinytest._runTestsEverywhere = function (onReport, onComplete, pathPrefix) {
       // This will only work for added & changed messages.
       // hope that is all you get.
       _.each(msg.fields, function (report) {
+        // Skip the 'done' report (deal with it last)
+        if (_.has(report, 'done')) {
+          return;
+        }
         _.each(report.events, function (event) {
           delete event.cookie; // can't debug a server test on the client..
         });
