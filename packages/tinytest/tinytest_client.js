@@ -15,10 +15,12 @@ Tinytest._runTestsEverywhere = function (onReport, onComplete, pathPrefix) {
     }
   };
 
-  Tinytest._runTests(onReport, function () {
-    localComplete = true;
-    maybeDone();
-  }, pathPrefix);
+  var runLocalTests = function () {
+    Tinytest._runTests(onReport, function () {
+      localComplete = true;
+      maybeDone();
+    }, pathPrefix);
+  };
 
   Meteor.connection.registerStore(Meteor._ServerTestResultsCollection, {
     update: function (msg) {
@@ -48,5 +50,6 @@ Tinytest._runTestsEverywhere = function (onReport, onComplete, pathPrefix) {
     handle.stop();
     Meteor.call('tinytest/clearResults', runId);
     maybeDone();
+    runLocalTests();
   });
 };
