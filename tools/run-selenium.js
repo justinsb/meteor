@@ -18,6 +18,7 @@ var Selenium = function (options) {
   self.xunitOutputFile = options.xunitOutputFile || 'test-results.xml';
 
   self.runner = options.runner;
+  self.browser = options.browser || 'chrome';
 
   self.xunitLines = null;
 };
@@ -57,9 +58,21 @@ _.extend(Selenium.prototype, {
 
     var webdriver = require('selenium-webdriver');
 
-    var capabilities = webdriver.Capabilities.chrome();
-    var loggingPrefs = {'browser': 'ALL'};
-    capabilities = capabilities.set('loggingPrefs', loggingPrefs);
+    var capabilities;
+    var loggingPrefs;
+    if (self.browser === 'chrome') {
+      capabilities = webdriver.Capabilities.chrome();
+      loggingPrefs = {'browser': 'ALL'};
+    } else if (self.browser === 'firefox') {
+      capabilities = webdriver.Capabilities.firefox();
+      loggingPrefs = {'browser': 'ALL'};
+    } else {
+      throw new Error("Unhandled browser: " + self.browser);
+    }
+
+    if (loggingPrefs) {
+      capabilities = capabilities.set('loggingPrefs', loggingPrefs);
+    }
 
     var builder = new webdriver.Builder().withCapabilities(capabilities);
     self.driver = builder.build();

@@ -86,7 +86,8 @@ var Runner = function (appDir, options) {
   self.selenium = null;
   if (options.selenium) {
     self.selenium = new Selenium({
-      runner: self
+      runner: self,
+      browser: options.seleniumBrowser
     });
   }
 };
