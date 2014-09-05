@@ -114,7 +114,7 @@ _.extend(Selenium.prototype, {
     if (self.runner) {
       runLog.log("Shutting down in response to 'done' state");
       self.runner.stop();
-      process.kill(process.pid, 'SIGINT');
+      process.exit(0);
     }
   },
 
